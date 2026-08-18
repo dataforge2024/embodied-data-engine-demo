@@ -132,20 +132,32 @@ class ChunkUploader(Protocol):
 
 **保持同步接口。** `oss2` SDK 是同步的，且现有 `LocalChunkUploader.upload()` 也是同步方法。强行改 async 会引入线程池包装且不带来实际并发收益（单文件分片上传本身是串行的，续传语义要求顺序确定）。Agent 主循环是 asyncio，上传调用经 `asyncio.to_thread` 移出事件循环，避免阻塞心跳。
 
-### 6. 预签名 URL 的获取路径：沿用 HTTP，不走 WS
+### 6. Agent 直接持有 OSS 凭据
 
-`ObjectStore.issue_grant()` 已存在（`object_store.py:93`），返回 `(url, expires_at)`。契约里也有 `UploadGrantFrame` 用于经 WS 下发凭据。两条路都铺了，需要选一条。
+Agent 启动时从环境变量读取 OSS AK/SK + endpoint + bucket，直接上传，不依赖 Platform 签发临时凭据。
 
-| 方案 | 取舍 |
-|---|---|
-| WS 下发 `UploadGrantFrame` | 契约原意；但 Agent 要在 HTTP 调用后异步等一个 WS 帧，两条通道的时序耦合，失败处理复杂（帧丢了怎么办？超时多久？） |
-| **`start-upload` 响应携带**（采纳） | 请求—响应一次完成，失败即刻可见；Agent 仍不持有长期凭据，只拿到单对象、限时的预签名 URL |
+**为什么不用 Platform 签发临时凭据**：
+- 原型阶段追求极简 — Agent 自治，不依赖 Platform 的凭据下发逻辑
+- 避免 HTTP 与 WS 两条通道的时序耦合（Agent 调 `POST /episodes/{id}/start-upload` 后异步等 `UploadGrantFrame`，失败处理复杂）
+- 生产场景可以用 RAM 子账号 + 最小权限策略（PutObject/GetObject/AbortMultipartUpload/ListParts 限定单 bucket）控制风险
 
-采纳 HTTP 路径：`POST /episodes/{id}/start-upload` 的响应体在 `Episode` 之外附带 `upload_grant`（URL + 过期时间）。设计初衷「Agent 不持有长期对象存储凭据」完整保留 — 预签名 URL 作用域限于单个对象键、TTL 受 `GRANT_TTL_SECONDS` 约束。
+**凭据配置**：
+```
+OSS_ACCESS_KEY_ID       # 阿里云 RAM 子账号 AK
+OSS_ACCESS_KEY_SECRET   # 对应 SK
+OSS_ENDPOINT           # oss-cn-hangzhou.aliyuncs.com
+OSS_BUCKET             # robotdatahub-demo
+```
 
-`UploadGrantFrame` 保留在契约中不删除：它对「Platform 主动要求 Agent 重传某对象」这类场景仍有意义，本期不使用。
+经 `.env.oss` 注入（gitignored），`docker-compose.yml` 用 `env_file` 引用。Agent 启动时校验这些变量存在且非空，缺失则拒绝启动。
 
-**这会改动 `start-upload` 的响应结构**，属契约变更，已在 proposal 的 Impact 中计入。
+**tradeoff**：
+- ✅ 架构极简，无 Platform 凭据签发、无 HTTP/WS 时序耦合
+- ✅ Agent 重启后直接恢复上传，无需重新请求凭据
+- ❌ Agent 持有长期凭据（但 RAM 子账号 + 最小权限 + gitignored 已足够）
+- ❌ 换 bucket / 轮换密钥需重启容器（原型可接受）
+
+`ObjectStore.issue_grant()` 与 `UploadGrantFrame` 保留但本期不使用 — Platform 若将来需要「主动推送重传任务」，可复用这条路径。
 
 ### 7. 进度落库：节流而非丢弃
 

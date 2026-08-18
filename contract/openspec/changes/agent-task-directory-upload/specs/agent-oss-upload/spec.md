@@ -27,27 +27,27 @@
 - **WHEN** 运行环境为生产且 OSS 相关配置仍为默认占位值
 - **THEN** 系统拒绝启动
 
-### Requirement: 上传凭据由 Platform 签发且限定作用域
+### Requirement: Agent 从环境变量读取 OSS 凭据
 
-Platform SHALL 在上传开始时签发限时、限对象的上传凭据，Agent 不持有长期对象存储凭据。
+Agent SHALL 启动时从环境变量读取 OSS 凭据，直接上传到阿里云 OSS，不依赖 Platform 签发临时凭据。
 
-#### Scenario: 请求开始上传
+#### Scenario: Agent 启动时读取 OSS 配置
 
-- **WHEN** Agent 调用开始上传端点
-- **THEN** 响应包含 Episode 信息与上传凭据
-- **AND** 凭据含目标地址与过期时间
+- **WHEN** Agent 容器启动
+- **THEN** Agent 读取环境变量 `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_ENDPOINT` / `OSS_BUCKET`
+- **AND** 若任一变量缺失或为空，Agent 拒绝启动并报错
 
-#### Scenario: 凭据作用域受限
-
-- **WHEN** Platform 签发上传凭据
-- **THEN** 该凭据仅对单个目标对象键有效
-- **AND** 凭据在配置的存活期后过期
-
-#### Scenario: Agent 不配置对象存储长期凭据
+#### Scenario: Agent 直接上传到 OSS
 
 - **WHEN** Agent 执行上传
-- **THEN** Agent 使用 Platform 签发的凭据
-- **AND** Agent 自身不需要配置对象存储的长期访问密钥
+- **THEN** Agent 使用自身配置的 AK/SK 直接调用 OSS API
+- **AND** 不调用 Platform 的凭据签发端点
+
+#### Scenario: 凭据不进入代码库
+
+- **WHEN** 部署 Agent
+- **THEN** OSS 凭据经 `.env.oss` 文件注入（该文件在 `.gitignore` 中）
+- **AND** 代码库中仅包含 `.env.oss.example` 示例文件，含键名但无实际值
 
 ### Requirement: 分片上传支持断点续传
 

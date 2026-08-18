@@ -10,10 +10,10 @@
 
 ## 2. Contract 扩展
 
-- [ ] 2.1 `TaskPushFrame` 新增 `task_name` / `requirement: TaskRequirement`
-- [ ] 2.2 `TaskRequirement` 含 `required_topics` / `target_episode_count`
-- [ ] 2.3 新增 `TaskCancelFrame`
-- [ ] 2.4 `UploadProgressFrame` 含 `task_id` / `file_name` / `bytes_uploaded` / `bytes_total` / `part_index` / `total_parts`
+- [ ] 2.1 验证 `AgentTaskPush` 已含 `task_name` / `requirement`（无需新增）
+- [ ] 2.2 验证 `TaskRequirement` 已含 `required_topics` / `target_episode_count`
+- [ ] 2.3 验证 `TaskCancelFrame` 已存在（无需新增）
+- [ ] 2.4 验证 `UploadProgressFrame` 字段足够（可能需补 `file_name`）
 - [ ] 2.5 生成 TS 类型并验证同步
 
 ## 3. 目录命名与元数据
@@ -59,18 +59,17 @@
 - [ ] 8.2 定义 `ChunkUploader` Protocol（签名沿用现有）
 - [ ] 8.3 实现 `OSSChunkUploader`：分片上传 + 断点续传 + 回调
 - [ ] 8.4 实现 `OSSObjectStore` 满足 `ObjectStore` Protocol
-- [ ] 8.5 后端切换配置，本地不要求 OSS 凭据
-- [ ] 8.6 OSS 后端凭据缺失时启动报错
-- [ ] 8.7 `POST /uploads/start` 返回 STS 临时凭据
-- [ ] 8.8 上传经 `asyncio.to_thread` 不阻塞事件循环
-- [ ] 8.9 **测试**：本地后端 + mock OSS 客户端
+- [ ] 8.5 Agent 启动时从环境变量读取 OSS 配置（AK/SK/endpoint/bucket）
+- [ ] 8.6 OSS 凭据缺失时启动报错
+- [ ] 8.7 上传经 `asyncio.to_thread` 不阻塞事件循环
+- [ ] 8.8 **测试**：本地后端 + mock OSS 客户端
 
 ## 9. 文件流转与恢复
 
 - [ ] 9.1 实现流转状态机：`pending` → `uploading` → `uploaded` → `callback_sent`
-- [ ] 9.2 上传成功 → `.uploaded/`
+- [ ] 9.2 上传成功 → `.done/`
 - [ ] 9.3 上传失败保留原地等恢复
-- [ ] 9.4 回调成功 → `.uploaded/`（配置可选删除）
+- [ ] 9.4 回调成功 → `.done/`（配置可选删除）
 - [ ] 9.5 Agent 启动扫描残局：有分片 DB 记录但未完成的 → 续传队列
 - [ ] 9.6 回调失败的补发
 - [ ] 9.7 **测试**：断电模拟（写一半分片 + 重启）
@@ -83,11 +82,11 @@
 - [ ] 10.4 连接断开期间的进度丢弃（不堆积）
 - [ ] 10.5 **测试**：mock WS 连接验证推送
 
-## 11. Platform 展示与 Tool 集成
+## 11. Platform 进度落库与展示
 
-- [ ] 11.1 `GET /tasks/{id}` 新增 `uploaded` / `target` 字段
-- [ ] 11.2 Tool 任务详情页显示进度条
-- [ ] 11.3 WS 进度帧驱动前端进度条实时更新
+- [ ] 11.1 Platform 收到进度帧时节流写入（≥5% 或 ≥2s）
+- [ ] 11.2 `GET /tasks/{id}` 返回任务进度（uploaded / target）
+- [ ] 11.3 `GET /episodes/{id}` 返回上传进度
 - [ ] 11.4 达成 `target_episode_count` 后标记已完成
 
 ## 12. 端到端验证
