@@ -1,0 +1,1317 @@
+openapi: 3.1.0
+
+info:
+  title: RobotDataHub Platform API
+  version: 0.1.0
+  description: |
+    Platform 对外 REST 契约。消费方：
+
+    - **Tool** — 核验、标注、审核（交互④）
+    - **Agent** — 上传完成回调（交互③）
+    - **Scheduler** — 算子结果回调（交互⑧）
+
+    Schema 定义与 `src/rdh_contract/schemas/` 的 pydantic 模型一一对应；改动其一必须同步另一。
+
+    所有响应使用统一封套 `success` / `data` / `error`，分页响应额外带 `meta`。
+
+servers:
+  - url: https://api.robotdatahub.local/api/v1
+    description: 生产
+  - url: http://localhost:8000/api/v1
+    description: 本地开发
+
+tags:
+  - name: auth
+    description: 认证
+  - name: episodes
+    description: Episode 查询与状态
+  - name: tasks
+    description: 采集任务
+  - name: verification
+    description: 核验（交互④）
+  - name: annotation
+    description: 标注与审核（交互④）
+  - name: datasets
+    description: 训练集构建
+  - name: agents
+    description: Agent 节点监控
+  - name: callbacks
+    description: 内部回调（交互③ / 交互⑧）
+  - name: health
+    description: 健康检查
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 登录获取 JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 当前用户
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /episodes:
+    get:
+      tags: [episodes]
+      summary: 分页查询 Episode
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          description: 按状态过滤
+          schema:
+            $ref: '#/components/schemas/EpisodeStatus'
+        - name: task_id
+          in: query
+          description: 按任务过滤
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /episodes/{episode_id}:
+    get:
+      tags: [episodes]
+      summary: 获取单个 Episode
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks:
+    get:
+      tags: [tasks]
+      summary: 分页查询采集任务
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CollectTask'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    post:
+      tags: [tasks]
+      summary: 创建采集任务
+      description: 需 `admin` 角色。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CollectTask'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /tasks/{task_id}/assign:
+    post:
+      tags: [tasks]
+      summary: 把任务分派给 Agent
+      description: 分派后 Platform 经 WebSocket 推送任务给对应 Agent（交互①）。
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id]
+              properties:
+                agent_id:
+                  type: string
+      responses:
+        '200':
+          description: 分派成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TaskAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /verification/queue:
+    get:
+      tags: [verification]
+      summary: 核验队列
+      description: 返回状态为 `verification_pending` 的 Episode。需 `verifier` 角色。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /verification/{episode_id}:
+    post:
+      tags: [verification]
+      summary: 提交核验结果
+      description: |
+        `approve` → Episode 进 `annotation_pending`；`reject` → 进 `rejected`（终态）并发布
+        `episode.rejected` 事件。非法状态迁移返回 409。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyResult'
+      responses:
+        '200':
+          description: 提交成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /annotation/queue:
+    get:
+      tags: [annotation]
+      summary: 标注队列
+      description: 返回状态为 `annotation_pending` 的 Episode。需 `annotator` 角色。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /annotation/{episode_id}:
+    get:
+      tags: [annotation]
+      summary: 获取标注详情
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Annotation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [annotation]
+      summary: 提交标注
+      description: |
+        `segments` 是**全量**分段而非增量补丁，Platform 整体替换。提交后 Episode 进
+        `annotation_review`。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationSubmit'
+      responses:
+        '200':
+          description: 提交成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Annotation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /annotation/{episode_id}/review:
+    post:
+      tags: [annotation]
+      summary: 提交标注审核
+      description: |
+        `approve` → Episode 进 `published` 并发布 `annotation.approved`；
+        `reject` → **退回 `annotation_pending` 重做**（不是 `rejected`，与核验打回不同）。
+        需 `reviewer` 角色。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewResult'
+      responses:
+        '200':
+          description: 审核完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /datasets/build:
+    post:
+      tags: [datasets]
+      summary: 请求构建训练集
+      description: 发布 `dataset.build_requested` 事件，由 Scheduler tool-worker 处理。需 `lab` 角色。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [episode_ids, output_format]
+              properties:
+                episode_ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                output_format:
+                  type: string
+                  description: 导出格式，如 lerobot / rlds
+      responses:
+        '202':
+          description: 已受理，异步构建
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          dataset_id:
+                            type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /agents:
+    get:
+      tags: [agents]
+      summary: Agent 节点列表
+      description: SysOps 工作区用。在线状态由心跳超时判定（45 秒）。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AgentNode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /callbacks/upload-complete:
+    post:
+      tags: [callbacks]
+      summary: 上传完成回调（交互③，Agent 调用）
+      description: |
+        Agent 分片上传结束后调用。Platform 校验 checksum，驱动 `uploading → uploaded`，
+        随后发布 `episode.uploaded` 事件（交互⑤）。
+
+        **与 `/callbacks/algo-result` 是两个不同端点，不要合并。**
+
+        鉴权用 Agent 专用凭据（`agentAuth`），不是用户 JWT。
+      security:
+        - agentAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadCallback'
+      responses:
+        '200':
+          description: 已接收
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /callbacks/algo-result:
+    post:
+      tags: [callbacks]
+      summary: 算子结果回调（交互⑧，Scheduler 调用）
+      description: |
+        Scheduler notify-worker 汇总算子结果后调用。仅当 `pipeline_complete=true` 时
+        Platform 才推进 Episode 状态（`processing → verification_pending` 或 `→ failed`）；
+        否则仅落数据。
+
+        **与 `/callbacks/upload-complete` 是两个不同端点，不要合并。**
+
+        鉴权用 Scheduler 专用凭据（`schedulerAuth`）。
+      security:
+        - schedulerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlgoResultCallback'
+      responses:
+        '200':
+          description: 已接收
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /health:
+    get:
+      tags: [health]
+      summary: 健康检查
+      security: []
+      responses:
+        '200':
+          description: 健康
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  version:
+                    type: string
+        '503':
+          description: 依赖不可用（数据库 / RabbitMQ / MinIO）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 用户 JWT，载荷见 `TokenPayload`
+    agentAuth:
+      type: apiKey
+      in: header
+      name: X-Agent-Token
+      description: Agent 专用凭据，仅可访问 `/callbacks/upload-complete`
+    schedulerAuth:
+      type: apiKey
+      in: header
+      name: X-Scheduler-Token
+      description: Scheduler 专用凭据，仅可访问 `/callbacks/algo-result`
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: 页码，从 1 开始
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      description: 每页记录数
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+    EpisodeId:
+      name: episode_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: 未认证或凭据无效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 已认证但角色不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 状态冲突（非法状态迁移、重复提交）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: 请求体校验失败
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+
+    EpisodeStatus:
+      type: string
+      description: Episode 状态，权威定义见 `rdh_contract.enums.EpisodeStatus`
+      enum:
+        - recording
+        - uploading
+        - uploaded
+        - processing
+        - verification_pending
+        - annotation_pending
+        - annotation_review
+        - published
+        - rejected
+        - failed
+
+    TaskStatus:
+      type: string
+      enum: [draft, published, assigned, in_progress, completed, cancelled]
+
+    Role:
+      type: string
+      enum: [admin, recorder, verifier, annotator, reviewer, lab, sysops]
+
+    AlgoOperator:
+      type: string
+      enum: [preannotate, quality, keyframe, anomaly]
+
+    JobStatus:
+      type: string
+      enum: [pending, running, succeeded, failed, timeout]
+
+    ReviewDecision:
+      type: string
+      enum: [approve, reject]
+
+    ErrorDetail:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+          description: 面向用户，不含堆栈或内部路径
+        field:
+          type: [string, 'null']
+        trace_id:
+          type: [string, 'null']
+
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        data:
+          type: 'null'
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+
+    ApiResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data: {}
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/ErrorDetail'
+            - type: 'null'
+
+    PageMeta:
+      type: object
+      required: [total, page, limit]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+
+    PaginatedResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items: {}
+        meta:
+          oneOf:
+            - $ref: '#/components/schemas/PageMeta'
+            - type: 'null'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/ErrorDetail'
+            - type: 'null'
+
+    SensorStream:
+      type: object
+      required: [topic, kind, message_count]
+      properties:
+        topic:
+          type: string
+        kind:
+          type: string
+          description: 'camera / joint_state / tactile / audio'
+        message_count:
+          type: integer
+          minimum: 0
+        frequency_hz:
+          type: [number, 'null']
+        start_offset_ms:
+          type: integer
+          minimum: 0
+          default: 0
+          description: 多路同步回放用
+        preview_url:
+          type: [string, 'null']
+
+    KeyFrame:
+      type: object
+      required: [timestamp_ms, topic, object_key]
+      properties:
+        timestamp_ms:
+          type: integer
+          minimum: 0
+        topic:
+          type: string
+        object_key:
+          type: string
+        score:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+
+    Segment:
+      type: object
+      description: 动作分段。Algo 产出、Tool 编辑、Platform 存储的共享结构。
+      required: [segment_id, start_ms, end_ms]
+      properties:
+        segment_id:
+          type: string
+        start_ms:
+          type: integer
+          minimum: 0
+        end_ms:
+          type: integer
+          exclusiveMinimum: 0
+          description: 必须大于 start_ms
+        action_label:
+          type: [string, 'null']
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+        source:
+          oneOf:
+            - $ref: '#/components/schemas/AlgoOperator'
+            - type: 'null'
+          description: 算子来源；null 表示人工创建或修改
+        confidence:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+
+    QualityReport:
+      type: object
+      required: [passed]
+      properties:
+        passed:
+          type: boolean
+        blur_score:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+        occlusion_score:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+        issues:
+          type: array
+          items:
+            type: string
+
+    Episode:
+      type: object
+      required: [episode_id, task_id, agent_id, status, created_at, updated_at]
+      properties:
+        episode_id:
+          type: string
+        task_id:
+          type: string
+        agent_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/EpisodeStatus'
+        object_key:
+          type: [string, 'null']
+        size_bytes:
+          type: [integer, 'null']
+          minimum: 0
+        duration_ms:
+          type: [integer, 'null']
+          minimum: 0
+        checksum:
+          type: [string, 'null']
+        streams:
+          type: array
+          items:
+            $ref: '#/components/schemas/SensorStream'
+        key_frames:
+          type: array
+          items:
+            $ref: '#/components/schemas/KeyFrame'
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+        quality:
+          oneOf:
+            - $ref: '#/components/schemas/QualityReport'
+            - type: 'null'
+        robot_model:
+          type: [string, 'null']
+        scene:
+          type: [string, 'null']
+        reject_reason:
+          type: [string, 'null']
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskRequirement:
+      type: object
+      required:
+        - robot_model
+        - scene
+        - required_topics
+        - min_duration_ms
+        - max_duration_ms
+        - target_episode_count
+      properties:
+        robot_model:
+          type: string
+        scene:
+          type: string
+        required_topics:
+          type: array
+          items:
+            type: string
+          description: 缺失则核验不通过
+        min_duration_ms:
+          type: integer
+          minimum: 0
+        max_duration_ms:
+          type: integer
+          exclusiveMinimum: 0
+        target_episode_count:
+          type: integer
+          exclusiveMinimum: 0
+
+    TaskCreate:
+      type: object
+      required: [name, requirement]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: [string, 'null']
+          maxLength: 5000
+        requirement:
+          $ref: '#/components/schemas/TaskRequirement'
+
+    TaskAssignment:
+      type: object
+      required: [task_id, agent_id, assigned_by, assigned_at]
+      properties:
+        task_id:
+          type: string
+        agent_id:
+          type: string
+        assigned_by:
+          type: string
+        assigned_at:
+          type: string
+          format: date-time
+
+    CollectTask:
+      type: object
+      required: [task_id, name, status, requirement, created_by, created_at, updated_at]
+      properties:
+        task_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        requirement:
+          $ref: '#/components/schemas/TaskRequirement'
+        collected_count:
+          type: integer
+          minimum: 0
+          default: 0
+        published_count:
+          type: integer
+          minimum: 0
+          default: 0
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskAssignment'
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    VerifyResult:
+      type: object
+      description: reject 时 reason 必填
+      required: [episode_id, decision, verified_by, verified_at]
+      properties:
+        episode_id:
+          type: string
+        decision:
+          $ref: '#/components/schemas/ReviewDecision'
+        reason:
+          type: [string, 'null']
+          maxLength: 2000
+        checked_topics:
+          type: array
+          items:
+            type: string
+        verified_by:
+          type: string
+        verified_at:
+          type: string
+          format: date-time
+
+    AnnotationSubmit:
+      type: object
+      description: segments 为全量分段（非增量），且不得互相重叠
+      required: [episode_id, segments]
+      properties:
+        episode_id:
+          type: string
+        segments:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Segment'
+        notes:
+          type: [string, 'null']
+          maxLength: 2000
+
+    ReviewResult:
+      type: object
+      description: reject 时 reason 必填；reject 表示退回重做，不是终态 rejected
+      required: [episode_id, decision, reviewed_by, reviewed_at]
+      properties:
+        episode_id:
+          type: string
+        decision:
+          $ref: '#/components/schemas/ReviewDecision'
+        reason:
+          type: [string, 'null']
+          maxLength: 2000
+        reviewed_by:
+          type: string
+        reviewed_at:
+          type: string
+          format: date-time
+
+    Annotation:
+      type: object
+      required: [annotation_id, episode_id, created_at, updated_at]
+      properties:
+        annotation_id:
+          type: string
+        episode_id:
+          type: string
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+        notes:
+          type: [string, 'null']
+        verify_result:
+          oneOf:
+            - $ref: '#/components/schemas/VerifyResult'
+            - type: 'null'
+        review_result:
+          oneOf:
+            - $ref: '#/components/schemas/ReviewResult'
+            - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+          default: 1
+        annotated_by:
+          type: [string, 'null']
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AgentHeartbeat:
+      type: object
+      required: [agent_id, version, reported_at, disk_free_bytes]
+      properties:
+        agent_id:
+          type: string
+        version:
+          type: string
+        reported_at:
+          type: string
+          format: date-time
+        recording_episode_id:
+          type: [string, 'null']
+        pending_upload_count:
+          type: integer
+          minimum: 0
+          default: 0
+        disk_free_bytes:
+          type: integer
+          minimum: 0
+        cpu_percent:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 100
+
+    AgentNode:
+      type: object
+      required: [agent_id, hostname, version, online, registered_at]
+      properties:
+        agent_id:
+          type: string
+        hostname:
+          type: string
+        version:
+          type: string
+        online:
+          type: boolean
+        last_heartbeat:
+          oneOf:
+            - $ref: '#/components/schemas/AgentHeartbeat'
+            - type: 'null'
+        assigned_task_ids:
+          type: array
+          items:
+            type: string
+        registered_at:
+          type: string
+          format: date-time
+
+    UploadCallback:
+      type: object
+      description: 交互③ 的请求体
+      required:
+        - episode_id
+        - object_key
+        - size_bytes
+        - checksum
+        - duration_ms
+        - recorded_topics
+        - completed_at
+      properties:
+        episode_id:
+          type: string
+        object_key:
+          type: string
+        size_bytes:
+          type: integer
+          minimum: 0
+        checksum:
+          type: string
+          description: SHA-256，Platform 侧校验完整性
+        duration_ms:
+          type: integer
+          minimum: 0
+        recorded_topics:
+          type: array
+          items:
+            type: string
+        completed_at:
+          type: string
+          format: date-time
+
+    AlgoJobResult:
+      type: object
+      required: [job_id, episode_id, operator, status, model_version, started_at, finished_at]
+      properties:
+        job_id:
+          type: string
+        episode_id:
+          type: string
+        operator:
+          $ref: '#/components/schemas/AlgoOperator'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        model_version:
+          type: string
+          description: 镜像 tag
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+        key_frames:
+          type: array
+          items:
+            $ref: '#/components/schemas/KeyFrame'
+        quality:
+          oneOf:
+            - $ref: '#/components/schemas/QualityReport'
+            - type: 'null'
+        anomalies:
+          type: array
+          items:
+            type: string
+        error_message:
+          type: [string, 'null']
+          description: status 为 failed/timeout 时必填
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+
+    AlgoResultCallback:
+      type: object
+      description: 交互⑧ 的请求体
+      required: [episode_id, results, pipeline_complete, reported_at]
+      properties:
+        episode_id:
+          type: string
+        results:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AlgoJobResult'
+        pipeline_complete:
+          type: boolean
+          description: 仅为 true 时 Platform 才推进 Episode 状态
+        reported_at:
+          type: string
+          format: date-time
+
+    User:
+      type: object
+      required: [user_id, username, display_name, roles, created_at]
+      properties:
+        user_id:
+          type: string
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        display_name:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        active:
+          type: boolean
+          default: true
+        created_at:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        password:
+          type: string
+          minLength: 1
+          format: password
+
+    TokenResponse:
+      type: object
+      required: [access_token, expires_in, user]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          default: bearer
+        expires_in:
+          type: integer
+          exclusiveMinimum: 0
+        user:
+          $ref: '#/components/schemas/User'

@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: set this to true or false
+# esbuild 需要执行安装脚本（下载平台二进制），显式放行以便非交互安装。
+onlyBuiltDependencies:
+  - esbuild

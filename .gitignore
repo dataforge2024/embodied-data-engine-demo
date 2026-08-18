@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 环境与密钥（禁止入库）
+.env
+.env.*
+!.env.example
+
+# 本地数据
+.runtime/
+*.sqlite
+*.sqlite3
+*.db
+*.mcap
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+*.swp

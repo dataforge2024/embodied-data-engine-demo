@@ -1,0 +1,54 @@
+{
+  "contract_version": "0.1.0",
+  "events": [
+    {
+      "consumer_queue": "notify",
+      "description": "单个算子执行成功，聚合后回调 Platform",
+      "max_retries": 3,
+      "model": "AlgoCompleted",
+      "routing_key": "algo.completed",
+      "schema_file": "algo.completed.json"
+    },
+    {
+      "consumer_queue": "notify",
+      "description": "算子执行失败，回调 Platform 置 failed 并告警",
+      "max_retries": 1,
+      "model": "AlgoFailed",
+      "routing_key": "algo.failed",
+      "schema_file": "algo.failed.json"
+    },
+    {
+      "consumer_queue": "tool",
+      "description": "标注审核通过，触发格式转换与训练集并入",
+      "max_retries": 3,
+      "model": "AnnotationApproved",
+      "routing_key": "annotation.approved",
+      "schema_file": "annotation.approved.json"
+    },
+    {
+      "consumer_queue": "tool",
+      "description": "Lab 请求构建训练集",
+      "max_retries": 3,
+      "model": "DatasetBuildRequested",
+      "routing_key": "dataset.build_requested",
+      "schema_file": "dataset.build_requested.json"
+    },
+    {
+      "consumer_queue": "notify",
+      "description": "Episode 被打回，通知采集人重采",
+      "max_retries": 3,
+      "model": "EpisodeRejected",
+      "routing_key": "episode.rejected",
+      "schema_file": "episode.rejected.json"
+    },
+    {
+      "consumer_queue": "ingest",
+      "description": "Episode 上传完成，触发解析与算子流水线",
+      "max_retries": 3,
+      "model": "EpisodeUploaded",
+      "routing_key": "episode.uploaded",
+      "schema_file": "episode.uploaded.json"
+    }
+  ],
+  "exchange": "robotdatahub.events"
+}

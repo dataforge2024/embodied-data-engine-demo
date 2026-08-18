@@ -1,0 +1,70 @@
+{
+  "$id": "https://robotdatahub.local/events/episode.rejected.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "``episode.rejected`` —— 核验打回或标注被拒，Episode 终止。\n\n发布方：Platform。\n消费方：notify-worker（通知采集人重采）。",
+  "properties": {
+    "episode_id": {
+      "description": "Episode ID",
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "event_id": {
+      "description": "事件唯一 ID（UUID），消费方据此幂等去重",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "description": "事件发生时间（UTC）",
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "reason": {
+      "description": "打回原因",
+      "title": "Reason",
+      "type": "string"
+    },
+    "rejected_by": {
+      "description": "操作人 user_id",
+      "title": "Rejected By",
+      "type": "string"
+    },
+    "task_id": {
+      "description": "所属任务 ID",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "跨模块链路追踪 ID",
+      "title": "Trace Id"
+    }
+  },
+  "required": [
+    "event_id",
+    "occurred_at",
+    "episode_id",
+    "task_id",
+    "reason",
+    "rejected_by"
+  ],
+  "title": "EpisodeRejected",
+  "type": "object",
+  "x-contract": {
+    "consumer_queue": "notify",
+    "description": "Episode 被打回，通知采集人重采",
+    "exchange": "robotdatahub.events",
+    "max_retries": 3,
+    "routing_key": "episode.rejected",
+    "version": "0.1.0"
+  }
+}

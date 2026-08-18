@@ -1,0 +1,59 @@
+[project]
+name = "robotdatahub-testing"
+version = "0.1.0"
+description = "RobotDataHub Testing：契约一致性、集成、E2E、压测"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "robotdatahub-contract==0.1.0",
+    "httpx>=0.28.0",
+    "pyyaml>=6.0.2",
+    # E2E 测试在同进程内驱动各模块的代码，因此需要它们的运行期依赖。
+    # 这不违反依赖铁律：Testing 是横向质量保障，本就要跨模块；
+    # 业务模块之间仍然互不依赖（由 contract_checks 强制校验）。
+    "aiosqlite>=0.20.0",
+    "fastapi>=0.115.0",
+    "pydantic-settings>=2.8.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "websockets>=13.0",
+]
+
+# 单目录模拟：用本地路径替代私有 registry。真实拆仓后删掉本节。
+[tool.uv.sources]
+robotdatahub-contract = { path = "../contract", editable = true }
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.11.0",
+    "types-pyyaml>=6.0.12",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["contract_checks", "integration", "e2e"]
+markers = [
+    "unit: 纯函数测试",
+    "contract: 契约一致性校验（不需要起服务）",
+    "integration: 需要 Platform 运行",
+    "e2e: 端到端流程",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+# E2E 测试在同进程内驱动各模块，需要能解析它们的源码目录。
+# 与运行期 sys.path 追加的路径保持一致。
+mypy_path = "../contract/src:../agent/src:../scheduler/src:../platform"

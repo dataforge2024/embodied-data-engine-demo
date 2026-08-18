@@ -1,0 +1,93 @@
+# KEDA 弹性伸缩：按 RabbitMQ 队列深度伸缩 worker（架构文档第三节）。
+#
+# 本阶段不部署，作为生产配置模板留档。四类 worker 的伸缩特征不同：
+# algo-worker 吃 GPU，上限要低且缩容要慢（避免 Job 中途被杀）；
+# notify-worker 是轻量 HTTP 调用，可以激进伸缩。
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ingest-worker
+  namespace: robotdatahub
+spec:
+  scaleTargetRef:
+    name: ingest-worker
+  minReplicaCount: 0          # 无消息时缩到 0，不占资源
+  maxReplicaCount: 50
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        queueName: ingest
+        mode: QueueLength
+        value: "20"           # 每 20 条消息加一个副本
+      authenticationRef:
+        name: rabbitmq-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: algo-worker
+  namespace: robotdatahub
+spec:
+  scaleTargetRef:
+    name: algo-worker
+  minReplicaCount: 0
+  maxReplicaCount: 150        # 架构文档的 0~150 上限
+  pollingInterval: 15
+  cooldownPeriod: 300         # GPU Job 耗时长，缩容要慢，避免杀掉进行中的 Job
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        queueName: algo
+        mode: QueueLength
+        value: "5"            # GPU 稀缺，每 5 条就扩，尽快消化积压
+      authenticationRef:
+        name: rabbitmq-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tool-worker
+  namespace: robotdatahub
+spec:
+  scaleTargetRef:
+    name: tool-worker
+  minReplicaCount: 0
+  maxReplicaCount: 30
+  pollingInterval: 30
+  cooldownPeriod: 180
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        queueName: tool
+        mode: QueueLength
+        value: "10"
+      authenticationRef:
+        name: rabbitmq-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notify-worker
+  namespace: robotdatahub
+spec:
+  scaleTargetRef:
+    name: notify-worker
+  minReplicaCount: 1          # 保 1 个常驻：通知延迟直接影响用户体感
+  maxReplicaCount: 20
+  pollingInterval: 10
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        queueName: notify
+        mode: QueueLength
+        value: "50"           # 轻量任务，单副本能扛很多
+      authenticationRef:
+        name: rabbitmq-auth

@@ -1,0 +1,77 @@
+{
+  "$id": "https://robotdatahub.local/events/annotation.approved.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "``annotation.approved`` —— 标注审核通过，Episode 已发布。\n\n发布方：Platform（审核通过、状态进 ``published`` 后）。\n消费方：Scheduler tool-worker → 格式转换、并入训练集。",
+  "properties": {
+    "annotation_id": {
+      "description": "标注记录 ID",
+      "title": "Annotation Id",
+      "type": "string"
+    },
+    "approved_by": {
+      "description": "审核人 user_id",
+      "title": "Approved By",
+      "type": "string"
+    },
+    "episode_id": {
+      "description": "Episode ID",
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "event_id": {
+      "description": "事件唯一 ID（UUID），消费方据此幂等去重",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "description": "事件发生时间（UTC）",
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "segment_count": {
+      "description": "分段数量",
+      "minimum": 0,
+      "title": "Segment Count",
+      "type": "integer"
+    },
+    "task_id": {
+      "description": "所属任务 ID",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "跨模块链路追踪 ID",
+      "title": "Trace Id"
+    }
+  },
+  "required": [
+    "event_id",
+    "occurred_at",
+    "episode_id",
+    "task_id",
+    "annotation_id",
+    "segment_count",
+    "approved_by"
+  ],
+  "title": "AnnotationApproved",
+  "type": "object",
+  "x-contract": {
+    "consumer_queue": "tool",
+    "description": "标注审核通过，触发格式转换与训练集并入",
+    "exchange": "robotdatahub.events",
+    "max_retries": 3,
+    "routing_key": "annotation.approved",
+    "version": "0.1.0"
+  }
+}

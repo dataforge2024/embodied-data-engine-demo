@@ -1,0 +1,86 @@
+{
+  "$id": "https://robotdatahub.local/events/episode.uploaded.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "``episode.uploaded`` —— Episode 上传完成，触发处理流水线。\n\n发布方：Platform（收到交互③的上传回调后）。\n消费方：Scheduler ingest-worker → 解析 MCAP、抽关键帧、建索引，随后串算子。",
+  "properties": {
+    "checksum": {
+      "description": "SHA-256",
+      "title": "Checksum",
+      "type": "string"
+    },
+    "episode_id": {
+      "description": "Episode ID",
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "event_id": {
+      "description": "事件唯一 ID（UUID），消费方据此幂等去重",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "object_key": {
+      "description": "MinIO 中的 MCAP 对象键",
+      "title": "Object Key",
+      "type": "string"
+    },
+    "occurred_at": {
+      "description": "事件发生时间（UTC）",
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "recorded_topics": {
+      "description": "实际录制到的 topic",
+      "items": {
+        "type": "string"
+      },
+      "title": "Recorded Topics",
+      "type": "array"
+    },
+    "size_bytes": {
+      "description": "文件大小",
+      "minimum": 0,
+      "title": "Size Bytes",
+      "type": "integer"
+    },
+    "task_id": {
+      "description": "所属任务 ID",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "跨模块链路追踪 ID",
+      "title": "Trace Id"
+    }
+  },
+  "required": [
+    "event_id",
+    "occurred_at",
+    "episode_id",
+    "task_id",
+    "object_key",
+    "size_bytes",
+    "checksum",
+    "recorded_topics"
+  ],
+  "title": "EpisodeUploaded",
+  "type": "object",
+  "x-contract": {
+    "consumer_queue": "ingest",
+    "description": "Episode 上传完成，触发解析与算子流水线",
+    "exchange": "robotdatahub.events",
+    "max_retries": 3,
+    "routing_key": "episode.uploaded",
+    "version": "0.1.0"
+  }
+}

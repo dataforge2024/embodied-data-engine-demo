@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "AlgoOperator": {
+      "description": "Algo 算子标识，与镜像名一一对应（架构文档第二节模块4）。",
+      "enum": [
+        "preannotate",
+        "quality",
+        "keyframe",
+        "anomaly"
+      ],
+      "title": "AlgoOperator",
+      "type": "string"
+    }
+  },
+  "$id": "https://robotdatahub.local/events/algo.failed.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "``algo.failed`` —— 算子执行失败。\n\n发布方：Scheduler algo-worker。\n消费方：notify-worker（回调 Platform 置 ``failed`` 并告警）。",
+  "properties": {
+    "episode_id": {
+      "description": "Episode ID",
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "error_message": {
+      "description": "失败原因",
+      "title": "Error Message",
+      "type": "string"
+    },
+    "event_id": {
+      "description": "事件唯一 ID（UUID），消费方据此幂等去重",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "job_id": {
+      "description": "作业 ID",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "description": "事件发生时间（UTC）",
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "operator": {
+      "$ref": "#/$defs/AlgoOperator",
+      "description": "算子类型"
+    },
+    "retry_count": {
+      "default": 0,
+      "description": "已重试次数",
+      "minimum": 0,
+      "title": "Retry Count",
+      "type": "integer"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "跨模块链路追踪 ID",
+      "title": "Trace Id"
+    }
+  },
+  "required": [
+    "event_id",
+    "occurred_at",
+    "episode_id",
+    "job_id",
+    "operator",
+    "error_message"
+  ],
+  "title": "AlgoFailed",
+  "type": "object",
+  "x-contract": {
+    "consumer_queue": "notify",
+    "description": "算子执行失败，回调 Platform 置 failed 并告警",
+    "exchange": "robotdatahub.events",
+    "max_retries": 1,
+    "routing_key": "algo.failed",
+    "version": "0.1.0"
+  }
+}

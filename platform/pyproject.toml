@@ -1,0 +1,60 @@
+[project]
+name = "robotdatahub-platform"
+version = "0.1.0"
+description = "RobotDataHub Platform：核心业务、WebSocket 服务、事件发布"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "robotdatahub-contract==0.1.0",
+    "aiosqlite>=0.20.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "pydantic-settings>=2.8.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "uvicorn[standard]>=0.34.0",
+    "websockets>=13.0",
+]
+
+# 单目录模拟：用本地路径替代私有 registry。真实拆仓后删掉本节，dependencies 一行不动。
+[tool.uv.sources]
+robotdatahub-contract = { path = "../contract", editable = true }
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.11.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "unit: 纯函数与业务逻辑单元测试",
+    "integration: 涉及数据库或外部依赖的集成测试",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
