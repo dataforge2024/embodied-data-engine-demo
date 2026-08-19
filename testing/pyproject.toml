@@ -11,6 +11,7 @@ dependencies = [
     # E2E 测试在同进程内驱动各模块的代码，因此需要它们的运行期依赖。
     # 这不违反依赖铁律：Testing 是横向质量保障，本就要跨模块；
     # 业务模块之间仍然互不依赖（由 contract_checks 强制校验）。
+    "aio-pika>=9.5.0",
     "aiosqlite>=0.20.0",
     "fastapi>=0.115.0",
     "pydantic-settings>=2.8.0",

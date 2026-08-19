@@ -14,6 +14,7 @@ from pathlib import Path
 from rdh_contract.enums import JobType
 from rdh_contract.events import (
     AnnotationApproved,
+    DatasetBuildRequested,
     EpisodeRejected,
     EpisodeUploaded,
     routing_keys_for_queue,
@@ -84,8 +85,19 @@ class Worker:
                 event.payload.reason,
             )
 
+        elif isinstance(event.payload, DatasetBuildRequested):
+            # tool-worker：训练集构建未实现（导出格式单开 change）。明确标示，
+            # 而不是静默成功让上游以为已经建好
+            logger.warning(
+                "训练集构建尚未实现，请求已记录 dataset=%s format=%s episodes=%d",
+                event.payload.dataset_id,
+                event.payload.output_format,
+                len(event.payload.episode_ids),
+            )
+
         else:
-            logger.info("事件已消费（无额外处理）routing_key=%s", event.routing_key)
+            # 契约里注册了新事件但这里没加分支 —— 静默消费会让事件像被处理了一样消失
+            logger.warning("事件无对应处理分支，已消费但未处理 routing_key=%s", event.routing_key)
 
     async def drain(self) -> int:
         """把当前队列里的消息全部处理完，返回处理条数。
@@ -117,16 +129,22 @@ class Worker:
                 await asyncio.sleep(self._settings.poll_interval_seconds)
 
 
-def build_workers(settings: Settings | None = None) -> tuple[Worker, ...]:
-    """构造 4 类 worker。"""
+def build_pipeline(settings: Settings | None = None) -> EpisodePipeline:
+    """构造流水线。Celery task 与进程内 worker 共用。"""
     settings = settings or get_settings()
-    settings.ensure_dirs()
     platform = PlatformClient(
         base_url=settings.platform_base_url,
         scheduler_token=settings.scheduler_token,
         timeout_seconds=settings.callback_timeout_seconds,
     )
-    pipeline = EpisodePipeline(settings=settings, runner=build_runner(settings), platform=platform)
+    return EpisodePipeline(settings=settings, runner=build_runner(settings), platform=platform)
+
+
+def build_workers(settings: Settings | None = None) -> tuple[Worker, ...]:
+    """构造 4 类 worker。"""
+    settings = settings or get_settings()
+    settings.ensure_dirs()
+    pipeline = build_pipeline(settings)
     return tuple(Worker(queue=queue, settings=settings, pipeline=pipeline) for queue in JobType)
 
 
@@ -143,4 +161,4 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 
-__all__ = ["ALGO_ROOT", "Worker", "build_runner", "build_workers", "main"]
+__all__ = ["ALGO_ROOT", "Worker", "build_pipeline", "build_runner", "build_workers", "main"]

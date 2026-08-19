@@ -42,12 +42,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
 
     logger.info(
-        "Platform 启动 env=%s contract=%s queue=%s",
+        "Platform 启动 env=%s contract=%s queue=%s(%s)",
         settings.environment,
         contract_version,
-        settings.event_queue_dir,
+        settings.queue_backend,
+        settings.amqp_url_safe if settings.uses_rabbit else settings.event_queue_dir,
     )
     yield
+
+    # RabbitMQ 后端持有长连接，停机时要显式关掉
+    if settings.uses_rabbit:
+        from app.api.dependencies import close_publisher
+
+        await close_publisher()
     logger.info("Platform 关闭")
 
 

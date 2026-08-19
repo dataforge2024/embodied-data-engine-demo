@@ -2,12 +2,16 @@
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 DEFAULT_RUNTIME_DIR = REPO_ROOT / ".runtime"
+
+# 已实现的队列后端（与 Platform 的 QUEUE_BACKENDS 保持一致）
+QUEUE_BACKENDS = frozenset({"file", "rabbit"})
 
 
 class Settings(BaseSettings):
@@ -23,8 +27,16 @@ class Settings(BaseSettings):
     environment: str = Field(default="local")
 
     # ---- 消息（与 Platform 共享）----
+    queue_backend: str = Field(
+        default="file",
+        description="file（本地文件队列）或 rabbit（真 broker）。必须与 Platform 设成同一个",
+    )
+    amqp_url: str = Field(
+        default="amqp://guest:guest@127.0.0.1:5672/",
+        description="RabbitMQ 连接串。仓库 public，生产凭据只经环境变量注入",
+    )
     event_queue_dir: Path = Field(
-        default=DEFAULT_RUNTIME_DIR / "queue", description="本地文件队列；生产改 RabbitMQ URL"
+        default=DEFAULT_RUNTIME_DIR / "queue", description="本地文件队列；backend=rabbit 时不使用"
     )
     dlq_dir: Path = Field(
         default=DEFAULT_RUNTIME_DIR / "dlq", description="死信目录：重试耗尽的消息落这里"
@@ -57,9 +69,39 @@ class Settings(BaseSettings):
     poll_interval_seconds: float = Field(default=0.5, gt=0)
     max_retries: int = Field(default=3, ge=0, description="兜底重试上限；单事件以契约声明为准")
 
+    @field_validator("queue_backend")
+    @classmethod
+    def _check_queue_backend(cls, value: str) -> str:
+        """只接受两个已实现的后端 —— 拼错的值不该静默退化成默认行为。"""
+        if value not in QUEUE_BACKENDS:
+            allowed = " / ".join(sorted(QUEUE_BACKENDS))
+            raise ValueError(f"queue_backend 只能是 {allowed}，收到：{value}")
+        return value
+
+    @property
+    def uses_rabbit(self) -> bool:
+        """是否走真 broker。"""
+        return self.queue_backend == "rabbit"
+
+    @property
+    def amqp_url_safe(self) -> str:
+        """脱敏后的 AMQP 连接串，供日志使用 —— 原串含密码，不能直接打出去。"""
+        parsed = urlsplit(self.amqp_url)
+        if not parsed.hostname:
+            return "amqp://<invalid-url>"
+        host = parsed.hostname if not parsed.port else f"{parsed.hostname}:{parsed.port}"
+        user = f"{parsed.username}:***@" if parsed.username else ""
+        return f"{parsed.scheme}://{user}{host}{parsed.path}"
+
     def ensure_dirs(self) -> None:
-        """创建本地运行目录。"""
-        for path in (self.event_queue_dir, self.dlq_dir, self.processed_dir):
+        """创建本地运行目录。
+
+        死信与归档目录只在文件队列后端下有意义；RabbitMQ 下死信由 ``EXCHANGE_DLX`` 承担。
+        """
+        paths: list[Path] = [self.dlq_dir, self.processed_dir]
+        if not self.uses_rabbit:
+            paths.insert(0, self.event_queue_dir)
+        for path in paths:
             path.mkdir(parents=True, exist_ok=True)
 
 
@@ -69,4 +111,10 @@ def get_settings() -> Settings:
     return Settings()
 
 
-__all__ = ["DEFAULT_RUNTIME_DIR", "REPO_ROOT", "Settings", "get_settings"]
+__all__ = [
+    "DEFAULT_RUNTIME_DIR",
+    "QUEUE_BACKENDS",
+    "REPO_ROOT",
+    "Settings",
+    "get_settings",
+]

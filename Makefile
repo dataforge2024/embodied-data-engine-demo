@@ -1,8 +1,9 @@
 .DEFAULT_GOAL := help
-.PHONY: help check demo contract-sync contract-test contract-cov contract-lint contract-gen \
-        platform-sync platform-lint scheduler-sync scheduler-lint agent-sync agent-lint \
-        algo-sync algo-lint tool-install tool-check web-install web-check \
-        testing-sync testing-lint conformance e2e arch-check clean clean-runtime
+.PHONY: help check demo demo-rabbit contract-sync contract-test contract-cov contract-lint \
+        contract-gen platform-sync platform-lint scheduler-sync scheduler-lint agent-sync \
+        agent-lint algo-sync algo-lint tool-install tool-check web-install web-check \
+        testing-sync testing-lint conformance e2e arch-check clean clean-runtime \
+        broker-up broker-down broker-logs rabbit-paths
 
 PY_MODULES := contract platform scheduler agent algo testing
 
@@ -76,12 +77,31 @@ e2e: testing-sync  ## 端到端流程测试
 	cd testing && uv run pytest e2e -q
 
 testing-lint: testing-sync  ## testing lint + 类型检查
-	cd testing && uv run ruff check . && uv run mypy contract_checks e2e
+	cd testing && uv run ruff check . && uv run mypy contract_checks e2e integration
+
+# ---- 本地 broker ----
+
+broker-up:  ## 起 RabbitMQ 并等就绪（需先 cp .env.example .env）
+	@test -f .env || { echo "✗ 缺少 .env，先执行：cp .env.example .env"; exit 1; }
+	docker compose up -d --wait rabbitmq
+	@echo "✓ broker 就绪 · 管理台 http://127.0.0.1:$${RABBITMQ_MANAGEMENT_PORT:-15672}"
+
+broker-down:  ## 停掉 RabbitMQ 并清数据卷
+	docker compose down -v
+
+broker-logs:  ## 跟踪 broker 日志
+	docker compose logs -f rabbitmq
 
 # ---- Demo ----
 
-demo: testing-sync  ## 跑端到端 MVP demo（8 条交互真跑一遍）
+demo: testing-sync  ## 跑端到端 MVP demo（8 条交互真跑一遍，零外部依赖）
 	uv run --project testing python scripts/demo.py
+
+demo-rabbit: testing-sync  ## 同上，但走真 RabbitMQ（需先 make broker-up）
+	RDH_QUEUE_BACKEND=rabbit uv run --project testing python scripts/demo.py
+
+rabbit-paths: testing-sync  ## 真 broker 上验三条失败路径（需先 make broker-up）
+	cd testing && uv run pytest integration/test_rabbit_failure_paths.py -q
 
 # ---- 聚合 ----
 

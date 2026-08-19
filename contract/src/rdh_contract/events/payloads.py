@@ -8,7 +8,6 @@ from datetime import datetime
 
 from pydantic import Field
 
-from ..enums import AlgoOperator
 from ..schemas.base import ContractModel
 
 
@@ -36,34 +35,6 @@ class EpisodeUploaded(EventEnvelope):
     size_bytes: int = Field(ge=0, description="文件大小")
     checksum: str = Field(description="SHA-256")
     recorded_topics: tuple[str, ...] = Field(description="实际录制到的 topic")
-
-
-class AlgoCompleted(EventEnvelope):
-    """``algo.completed`` —— 单个算子执行成功。
-
-    发布方：Scheduler algo-worker。
-    消费方：Scheduler notify-worker（聚合后回调 Platform，交互⑧）。
-    """
-
-    episode_id: str = Field(description="Episode ID")
-    job_id: str = Field(description="作业 ID")
-    operator: AlgoOperator = Field(description="算子类型")
-    model_version: str = Field(description="模型版本（镜像 tag）")
-    output_prefix: str = Field(description="产物的 MinIO 前缀")
-
-
-class AlgoFailed(EventEnvelope):
-    """``algo.failed`` —— 算子执行失败。
-
-    发布方：Scheduler algo-worker。
-    消费方：notify-worker（回调 Platform 置 ``failed`` 并告警）。
-    """
-
-    episode_id: str = Field(description="Episode ID")
-    job_id: str = Field(description="作业 ID")
-    operator: AlgoOperator = Field(description="算子类型")
-    error_message: str = Field(description="失败原因")
-    retry_count: int = Field(default=0, ge=0, description="已重试次数")
 
 
 class AnnotationApproved(EventEnvelope):
@@ -107,8 +78,6 @@ class DatasetBuildRequested(EventEnvelope):
 
 
 __all__ = [
-    "AlgoCompleted",
-    "AlgoFailed",
     "AnnotationApproved",
     "DatasetBuildRequested",
     "EpisodeRejected",

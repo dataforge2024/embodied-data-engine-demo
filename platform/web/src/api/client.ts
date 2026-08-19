@@ -125,7 +125,7 @@ async function post<T>(path: string, body: any): Promise<T> {
   return payload.data as T;
 }
 
-export { post };
+export { get, post };
 
 export const fetchTasks = () => getList<CollectTask>("/tasks");
 export const fetchTask = (taskId: string) =>

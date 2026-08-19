@@ -64,7 +64,7 @@ class TestRoutingKeyConventions:
 
     def test_domain_prefix_is_known(self) -> None:
         """domain 前缀受控，避免事件命名空间失控。"""
-        allowed_domains = {"episode", "algo", "annotation", "dataset"}
+        allowed_domains = {"episode", "annotation", "dataset"}
         for key in EVENT_REGISTRY:
             domain = key.split(".", 1)[0]
             assert domain in allowed_domains, f"未知 domain 前缀：{domain}（来自 {key}）"
@@ -158,10 +158,6 @@ class TestExchangesAndRetries:
         """重试次数在合理范围，避免无限重试拖垮 worker。"""
         for key, spec in EVENT_REGISTRY.items():
             assert 0 <= spec.max_retries <= 5, f"{key} 的 max_retries 异常：{spec.max_retries}"
-
-    def test_failure_events_retry_sparingly(self) -> None:
-        """失败类事件不宜多次重试——失败本身已是结论。"""
-        assert EVENT_REGISTRY["algo.failed"].max_retries <= 1
 
 
 @pytest.mark.unit

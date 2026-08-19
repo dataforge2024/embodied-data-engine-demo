@@ -330,6 +330,33 @@
   color: var(--accent);
 }
 
+/* 人工环节入口：跳到 Tool 工作台。只在等人操作的状态下出现 */
+.tool-cell {
+  white-space: nowrap;
+}
+
+.tool-link {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tool-link:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+}
+
+.tool-idle {
+  color: var(--text-secondary);
+}
+
 .time-cell {
   color: var(--text-secondary);
   white-space: nowrap;

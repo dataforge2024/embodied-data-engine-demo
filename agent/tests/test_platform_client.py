@@ -113,6 +113,115 @@ class TestAuth:
             await _create(_client(handler, access_token=None))
 
 
+class TestTokenExpiry:
+    """JWT 过期后自动重登。
+
+    回归测试：常驻 Agent 启动时登录一次，JWT 默认 1 小时过期。早先客户端握着过期 token
+    不放，跑过一个 TTL 之后 ``POST /episodes`` 收到 401 直接放弃，文件全进 ``.failed/`` ——
+    Agent 看着还在跑，实际再也传不上任何东西。
+    """
+
+    async def test_relogin_on_401_then_retry(self) -> None:
+        """401 后重新登录并重试，最终成功。"""
+        calls: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            path = request.url.path
+            calls.append(path)
+            if path.endswith("/auth/login"):
+                return httpx.Response(
+                    200, json={"success": True, "data": {"access_token": "fresh-token"}}
+                )
+            # 第一次带旧 token 来的请求返回 401，重登后再来才放行
+            auth = request.headers.get("Authorization", "")
+            if auth == "Bearer stale-token":
+                return httpx.Response(
+                    401, json={"success": False, "error": {"message": "token 已过期"}}
+                )
+            assert auth == "Bearer fresh-token"
+            return httpx.Response(201, json={"success": True, "data": {"episode_id": EPISODE_ID}})
+
+        client = _client(handler, access_token="stale-token").with_access_token(
+            "stale-token", credentials=("admin", "pw")
+        )
+        assert await _create(client) == EPISODE_ID
+        assert any(p.endswith("/auth/login") for p in calls), "应触发重新登录"
+
+    async def test_refreshed_token_is_reused(self) -> None:
+        """刷新后的 token 就地生效 —— 下一次调用不该再撞 401。
+
+        FileProcessor 持有的是同一个客户端实例，刷新必须改到实例上；
+        若返回新对象，调用方手里永远是过期那个。
+        """
+        logins = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal logins
+            if request.url.path.endswith("/auth/login"):
+                logins += 1
+                return httpx.Response(
+                    200, json={"success": True, "data": {"access_token": "fresh-token"}}
+                )
+            if request.headers.get("Authorization") == "Bearer stale-token":
+                return httpx.Response(401, json={"success": False, "error": {"message": "过期"}})
+            return httpx.Response(201, json={"success": True, "data": {"episode_id": EPISODE_ID}})
+
+        client = _client(handler, access_token="stale-token").with_access_token(
+            "stale-token", credentials=("admin", "pw")
+        )
+        await _create(client)
+        await _create(client)
+        assert logins == 1, f"token 应只刷新一次，实际登录 {logins} 次"
+
+    async def test_start_upload_also_refreshes(self) -> None:
+        """``start-upload`` 同样走用户 JWT，也要能自愈。"""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/auth/login"):
+                return httpx.Response(
+                    200, json={"success": True, "data": {"access_token": "fresh-token"}}
+                )
+            if request.headers.get("Authorization") == "Bearer stale-token":
+                return httpx.Response(401, json={"success": False, "error": {"message": "过期"}})
+            return httpx.Response(200, json={"success": True, "data": {}})
+
+        client = _client(handler, access_token="stale-token").with_access_token(
+            "stale-token", credentials=("admin", "pw")
+        )
+        await client.start_upload(EPISODE_ID)  # 不抛即通过
+
+    async def test_without_credentials_gives_up(self) -> None:
+        """没带凭据时不能假装成功 —— 401 照样抛，只是日志说明无法重登。"""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/auth/login"):  # pragma: no cover - 不该走到
+                raise AssertionError("没有凭据时不该尝试登录")
+            return httpx.Response(401, json={"success": False, "error": {"message": "过期"}})
+
+        with pytest.raises(PlatformError, match="创建 Episode 失败 401"):
+            await _create(_client(handler, access_token="stale-token"))
+
+    async def test_second_401_is_not_retried_forever(self) -> None:
+        """重登后仍 401 说明凭据本身不对，只重试一次就放弃。"""
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            if request.url.path.endswith("/auth/login"):
+                return httpx.Response(
+                    200, json={"success": True, "data": {"access_token": "still-bad"}}
+                )
+            attempts += 1
+            return httpx.Response(401, json={"success": False, "error": {"message": "过期"}})
+
+        client = _client(handler, access_token="stale-token").with_access_token(
+            "stale-token", credentials=("admin", "pw")
+        )
+        with pytest.raises(PlatformError, match="创建 Episode 失败 401"):
+            await _create(client)
+        assert attempts == 2, f"应只重试一次（共 2 次请求），实际 {attempts} 次"
+
+
 async def _create(client: PlatformClient) -> str:
     return await client.create_episode(
         task_id="task-1",

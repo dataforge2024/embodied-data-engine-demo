@@ -206,12 +206,47 @@ class TestEventWiring:
         assert not offenders, f"绕过 event_publisher 直接写队列：{offenders}"
 
     def test_scheduler_consumes_via_registry(self) -> None:
-        """Scheduler 通过契约注册表反序列化，不硬编码 routing_key 到模型的映射。"""
-        consumer = (
-            REPO_ROOT / "scheduler" / "src" / "scheduler" / "consumers" / "queue.py"
+        """Scheduler 通过契约注册表反序列化，不硬编码 routing_key 到模型的映射。
+
+        解码收口在 ``consumers/event.py``（两个后端共用），重试上限各后端自己按
+        ``get_spec`` 取 —— 所以按整个 consumers 包检查，而不是盯单个文件。
+        """
+        consumers = REPO_ROOT / "scheduler" / "src" / "scheduler" / "consumers"
+        sources = {path.name: path.read_text(encoding="utf-8") for path in consumers.glob("*.py")}
+
+        assert any("get_model" in text for text in sources.values()), (
+            "Scheduler 未使用契约的 get_model"
+        )
+        for backend in ("queue.py", "rabbit.py"):
+            assert "get_spec" in sources[backend], f"{backend} 未按契约取 max_retries"
+
+    def test_scheduler_binds_queues_from_contract(self) -> None:
+        """RabbitMQ 的队列绑定取自 ``routing_keys_for_queue()``，不手写 binding key。
+
+        绑定漂移会让事件静默无人消费 —— 队列在、消息进 exchange，但没有绑定接住。
+        """
+        rabbit = (
+            REPO_ROOT / "scheduler" / "src" / "scheduler" / "consumers" / "rabbit.py"
         ).read_text(encoding="utf-8")
-        assert "get_model" in consumer, "Scheduler 未使用契约的 get_model"
-        assert "get_spec" in consumer, "Scheduler 未使用契约的 get_spec"
+        assert "routing_keys_for_queue" in rabbit, "RabbitConsumer 未按契约取绑定 key"
+
+    def test_consumers_do_not_hardcode_routing_keys(self) -> None:
+        """消费层不出现 routing_key 字面量 —— 全部经注册表查表。"""
+        consumers = REPO_ROOT / "scheduler" / "src" / "scheduler" / "consumers"
+        offenders: list[str] = []
+        for path in consumers.glob("*.py"):
+            for routing_key in EVENT_REGISTRY:
+                if f'"{routing_key}"' in path.read_text(encoding="utf-8"):
+                    offenders.append(f"{path.name} 硬编码 {routing_key}")
+        assert not offenders, offenders
+
+    def test_celery_tasks_cover_every_event(self) -> None:
+        """每个注册事件都有对应的 Celery task —— 否则新事件进队列后无人处理。"""
+        celery_app = (REPO_ROOT / "scheduler" / "src" / "scheduler" / "celery_app.py").read_text(
+            encoding="utf-8"
+        )
+        missing = [key for key in EVENT_REGISTRY if f'"{key}"' not in celery_app]
+        assert not missing, f"以下事件没有 Celery task 映射：{missing}"
 
 
 @pytest.mark.contract

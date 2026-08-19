@@ -172,16 +172,12 @@ export function isTerminal(status: EpisodeStatus): boolean {
 
 /** RabbitMQ 事件 routing key。 */
 export type EventRoutingKey =
-  | "algo.completed"
-  | "algo.failed"
   | "annotation.approved"
   | "dataset.build_requested"
   | "episode.rejected"
   | "episode.uploaded";
 
 export const EVENT_ROUTING_KEYS: readonly EventRoutingKey[] = [
-  "algo.completed",
-  "algo.failed",
   "annotation.approved",
   "dataset.build_requested",
   "episode.rejected",

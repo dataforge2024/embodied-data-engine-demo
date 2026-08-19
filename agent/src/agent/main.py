@@ -51,7 +51,11 @@ async def run(
     if recover_only:
         return 0 if not report.failed else 1
 
-    authed = platform.with_access_token(await platform.login(username, password))
+    # 带上凭据：JWT 有 TTL（默认 1 小时），常驻 Agent 要跑几天，
+    # 过期后靠这份凭据自动重登，否则所有用户 JWT 端点都会 401。
+    authed = platform.with_access_token(
+        await platform.login(username, password), credentials=(username, password)
+    )
     collector = Collector(settings=settings, store=store, platform=authed)
 
     if task_id is not None:

@@ -7,6 +7,7 @@ import type { Episode, EpisodeStatus, User } from "@contract";
 import { isTerminal } from "@contract";
 import type { UploadProgress } from "../hooks/useConsoleStream";
 import { formatFull, formatShort } from "../utils/datetime";
+import { TOOL_STAGE_LABELS, toolLink, toolStageOf } from "../utils/toolLink";
 import { StageBar } from "./StageBar";
 
 export const STATUS_LABELS: Record<EpisodeStatus, string> = {
@@ -48,6 +49,34 @@ interface EpisodeTableProps {
   emptyText?: string;
 }
 
+/**
+ * 人工环节入口。
+ *
+ * 只有在等人操作的三个状态才给链接 —— 其余状态要么在自动流水线里跑着，
+ * 要么已到终态，跳过去没有可做的事。
+ */
+function ToolEntry({
+  episodeId,
+  status,
+}: {
+  episodeId: string;
+  status: EpisodeStatus;
+}) {
+  const stage = toolStageOf(status);
+  if (stage === null) return <span className="tool-idle">—</span>;
+  return (
+    <a
+      className="tool-link"
+      href={toolLink(episodeId, stage)}
+      target="_blank"
+      rel="noreferrer"
+      title="在 Tool 工作台打开（新标签页）"
+    >
+      {TOOL_STAGE_LABELS[stage]}
+    </a>
+  );
+}
+
 export function EpisodeTable({
   episodes,
   users,
@@ -56,8 +85,8 @@ export function EpisodeTable({
   showTaskColumn = true,
   emptyText = "暂无记录",
 }: EpisodeTableProps) {
-  // 阶段列新增后列数 +1
-  const columnCount = showTaskColumn ? 12 : 11;
+  // 阶段列 + 人工环节入口列
+  const columnCount = showTaskColumn ? 13 : 12;
 
   return (
     <div className="table-container">
@@ -76,6 +105,7 @@ export function EpisodeTable({
             <th>机型</th>
             <th>场景</th>
             <th>创建时间</th>
+            <th>人工环节</th>
           </tr>
         </thead>
         <tbody>
@@ -148,6 +178,9 @@ export function EpisodeTable({
                   title={formatFull(episode.created_at)}
                 >
                   {formatShort(episode.created_at)}
+                </td>
+                <td className="tool-cell">
+                  <ToolEntry episodeId={episode.episode_id} status={status} />
                 </td>
               </tr>
             );
