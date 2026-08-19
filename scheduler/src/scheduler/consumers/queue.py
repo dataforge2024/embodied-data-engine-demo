@@ -6,33 +6,22 @@
 - **重试与死信**：失败重试到契约声明的 ``max_retries``，耗尽后进死信目录而非无限重试。
 - **消费顺序**：文件名带时间戳前缀，按名排序即大致按发布顺序。
 
-生产替换点是 :class:`FileQueueConsumer`：换成 aio-pika 实现同样的 ``fetch`` / ``ack`` /
-``reject`` 三个动作即可，:mod:`scheduler.pipelines` 无需改动。
+真 broker 的对应实现是 :class:`~scheduler.consumers.rabbit.RabbitConsumer`：同样的
+``fetch`` / ``ack`` / ``reject`` 三个动作，信封解码共用
+:func:`~scheduler.consumers.event.decode_envelope`。``RDH_QUEUE_BACKEND`` 决定用哪个。
 """
 
 import json
 import logging
 import shutil
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from rdh_contract.events import get_model, get_spec
-from rdh_contract.schemas.base import ContractModel
+from rdh_contract.events import get_spec
+
+from scheduler.consumers.event import ConsumedEvent, UndecodableEvent, decode_envelope
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ConsumedEvent:
-    """一条已取出的事件。"""
-
-    path: Path
-    routing_key: str
-    event_id: str
-    payload: ContractModel
-    attempt: int = 1
-    raw: dict[str, Any] = field(default_factory=dict)
 
 
 class FileQueueConsumer:
@@ -77,29 +66,25 @@ class FileQueueConsumer:
                 self._move(path, self._dlq_path)
                 continue
 
-            routing_key = raw.get("routing_key", "")
-            event_id = raw.get("event_id", "")
-
-            if event_id in self._seen:
-                logger.info("重放事件已跳过 event_id=%s", event_id)
+            if raw.get("event_id", "") in self._seen:
+                logger.info("重放事件已跳过 event_id=%s", raw.get("event_id", ""))
                 self._move(path, self._processed_path)
                 continue
 
             try:
-                model = get_model(routing_key)
-                payload = model.model_validate(raw["payload"])
-            except Exception:
-                logger.warning("事件 payload 不合契约，转入死信：%s", routing_key)
+                routing_key, event_id, payload = decode_envelope(raw)
+            except UndecodableEvent as exc:
+                logger.warning("事件不合契约，转入死信：%s", exc)
                 self._move(path, self._dlq_path)
                 continue
 
             return ConsumedEvent(
-                path=path,
                 routing_key=routing_key,
                 event_id=event_id,
                 payload=payload,
                 attempt=self._attempts.get(event_id, 0) + 1,
                 raw=raw,
+                handle=path,
             )
         return None
 
@@ -107,7 +92,7 @@ class FileQueueConsumer:
         """确认处理成功：记入已处理集合并归档。"""
         self._seen.add(event.event_id)
         self._attempts.pop(event.event_id, None)
-        self._move(event.path, self._processed_path)
+        self._move(self._path_of(event), self._processed_path)
 
     def reject(self, event: ConsumedEvent, *, reason: str) -> bool:
         """处理失败。
@@ -127,7 +112,7 @@ class FileQueueConsumer:
                 reason,
             )
             self._seen.add(event.event_id)
-            self._move(event.path, self._dlq_path)
+            self._move(self._path_of(event), self._dlq_path)
             return False
 
         logger.warning(
@@ -149,6 +134,14 @@ class FileQueueConsumer:
             len(list(self._processed_path.glob("*.json"))) if self._processed_path.is_dir() else 0
         )
 
+    @staticmethod
+    def _path_of(event: ConsumedEvent) -> Path:
+        """取出文件队列后端存在 ``handle`` 里的文件路径。"""
+        if not isinstance(event.handle, Path):
+            actual = type(event.handle).__name__
+            raise TypeError(f"文件队列后端期望 handle 是 Path，实际是 {actual}")
+        return event.handle
+
     def _move(self, path: Path, target_dir: Path) -> None:
         """归档文件。目标已存在同名文件时覆盖（同一 event_id 只保留最后一次）。"""
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -158,4 +151,4 @@ class FileQueueConsumer:
             logger.warning("归档失败 %s: %s", path.name, exc)
 
 
-__all__ = ["ConsumedEvent", "FileQueueConsumer"]
+__all__ = ["FileQueueConsumer"]
