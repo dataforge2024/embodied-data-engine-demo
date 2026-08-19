@@ -107,3 +107,121 @@
   font-weight: 500;
   font-size: 0.8125rem;
 }
+
+/* ---- 队列巡检面板 ---- */
+
+.queue-panel {
+  margin-top: var(--spacing-xl);
+}
+
+.queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+}
+
+.queue-header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.queue-stats {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+/* 死信非零要显眼：它意味着有消息处理失败了 */
+.stat-card.danger {
+  border-color: #f87171;
+  background: color-mix(in srgb, #f87171 8%, var(--surface-2));
+}
+
+.stat-card.danger .stat-value {
+  color: #f87171;
+}
+
+.queues-table {
+  background: var(--surface-2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.queue-name {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  background: var(--surface-3);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.queue-depth {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.queue-depth.warn {
+  color: #fbbf24;
+}
+
+.queue-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.routing-key {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.queue-muted {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+/* broker 连不上是「状态」而非「故障」，用告警色而不是错误色 */
+.warn-state {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background: color-mix(in srgb, #fbbf24 10%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, #fbbf24 40%, var(--surface-3));
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.warn-hint {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--surface-3);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.queue-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.queue-footer code {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  color: var(--text-secondary);
+}

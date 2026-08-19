@@ -1,8 +1,11 @@
-/** SysOps 工作区：Agent 节点状态查看。
+/** SysOps 工作区：Agent 节点与事件队列的运行状态。
  *
- * 纯查看页 —— 任务的创建与分派在「任务管理」里做，这里不碰任务生命周期。
+ * 以查看为主 —— 任务的创建与分派在「任务管理」里做，这里不碰任务生命周期。
  * 唯一的动作是「触发回传」：Agent 平时靠目录监听自动上传，这是监听漏掉或
  * 上传失败后的人工补救，属于运维范畴。
+ *
+ * 队列面板是手工测试的抓手：上传完成后事件有没有被消费、有没有进死信，
+ * 在这里一眼能看到，不用去翻日志或连 broker 管理台。
  */
 
 import { useEffect, useState } from "react";
@@ -10,6 +13,7 @@ import { Button, Table, Tag, message } from "antd";
 import type { AgentNode } from "@contract";
 import { fetchAgents } from "../../api/client";
 import { triggerUpload } from "../../api/sysops";
+import { QueuePanel } from "../../components/QueuePanel";
 import { useConsoleStream } from "../../hooks/useConsoleStream";
 import "./SysOpsPage.css";
 
@@ -133,6 +137,8 @@ export function SysOpsPage() {
         locale={{ emptyText: "暂无 Agent 注册" }}
         className="agents-table"
       />
+
+      <QueuePanel />
     </div>
   );
 }
