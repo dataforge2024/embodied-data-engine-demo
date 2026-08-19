@@ -1,0 +1,399 @@
+/* Admin / Recorder 工作区共用样式。变量在 App.css 里定义。 */
+
+.workspace-main {
+  padding: var(--spacing-xl);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.workspace-header {
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  /* center 而非 baseline：右侧可能是按钮（任务管理）也可能是文字（采集记录） */
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+/* ---- 面包屑与二级页 ---- */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.breadcrumb-sep {
+  color: var(--text-muted);
+}
+
+/* 表格里的任务名与面包屑返回共用：看起来像链接，实际是 button（可聚焦、可键盘触发） */
+.link-btn {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.clickable-row:hover {
+  background: var(--surface-2);
+}
+
+.actions-cell {
+  display: flex;
+  gap: var(--spacing-xs);
+  white-space: nowrap;
+}
+
+/* ---- 任务详情的元数据 ---- */
+
+.task-desc {
+  margin: 0 0 var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin: 0 0 var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.meta-grid dt {
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.meta-grid dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.topics-cell {
+  word-break: break-all;
+}
+
+.derailed-card .stat-value {
+  color: #f87171;
+}
+
+/* ---- 阶段图例 ---- */
+
+.legend {
+  margin-top: var(--spacing-xl);
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.legend-title {
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.legend-list {
+  margin: var(--spacing-md) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.legend-list li {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.legend-list strong {
+  min-width: 3em;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.legend-list span {
+  color: var(--text-muted);
+}
+
+/* ---- 筛选栏 ---- */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+/* ---- 父子行（任务 → 采集记录）---- */
+
+.expand-col {
+  width: 32px;
+  padding-right: 0 !important;
+}
+
+.expand-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.expand-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.parent-row.open {
+  background: var(--surface-2);
+}
+
+/* 嵌套表格自带边框，父级单元格不再加内距，避免双层留白 */
+.sub-row > td {
+  padding: 0 !important;
+  background: var(--surface-2);
+}
+
+.sub-panel {
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-md)
+    calc(32px + var(--spacing-md));
+  border-left: 2px solid var(--accent-dim);
+}
+
+.sub-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sub-panel-count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* WS 连接指示：断开时页面仍靠 5s 轮询工作，所以用弱提示而非报错 */
+.live-dot {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.live-dot.on {
+  color: #10b981;
+}
+
+.live-dot.off {
+  color: #64748b;
+}
+
+.workspace-header h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* ---- 统计卡片 ---- */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.stat-card {
+  display: grid;
+  gap: 4px;
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+/* ---- 数据表 ---- */
+
+.table-container {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.data-table thead th {
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover {
+  background: var(--surface-3);
+}
+
+.data-table .terminal-row {
+  opacity: 0.65;
+}
+
+.task-name {
+  font-weight: 500;
+}
+
+.mono-cell,
+.agent-id {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.8125rem;
+}
+
+.agent-id {
+  color: var(--accent);
+  background: var(--surface-3);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.task-link {
+  color: var(--accent);
+}
+
+.time-cell {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.empty-value {
+  color: var(--text-muted);
+}
+
+.empty-row td {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---- 状态 chip ---- */
+
+.status-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--surface-0);
+  white-space: nowrap;
+}
+
+/* ---- 进度条 ---- */
+
+.progress-bar-container {
+  position: relative;
+  min-width: 120px;
+  height: 20px;
+  background: var(--surface-3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  color: var(--text-primary);
+}
+
+/* ---- 加载与错误态 ---- */
+
+.loading-state,
+.error-state {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.error-state {
+  color: #ef4444;
+}
