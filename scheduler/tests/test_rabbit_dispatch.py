@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -170,32 +169,37 @@ class TestDispatch:
         payload = uploaded_payload()
         _, event_id, decoded = decode_envelope(envelope("episode.uploaded", payload))
         worker = RabbitWorker(queue=JobType.INGEST, settings=Settings(queue_backend="rabbit"))
-        await worker.dispatch(
+        unhandled = await worker.dispatch(
             ConsumedEvent(
                 routing_key="episode.uploaded", event_id=event_id, payload=decoded, handle=None
             )
         )
 
+        assert unhandled is None, "投递成功应返回 None，调用方才会 ack"
         assert len(fake.calls) == 1
         assert fake.calls[0]["episode_id"] == "ep-1"
 
-    async def test_unmapped_routing_key_warns_instead_of_crashing(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    async def test_unmapped_routing_key_is_reported_not_acked(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """没有映射的事件记警告 —— 不静默丢弃，也不炸掉消费循环。"""
+        """没有映射的事件返回原因，由调用方转死信。
+
+        契约要求「worker 不得确认一条它没有实际处理的消息」：ack 掉等于静默丢弃，
+        订阅了却无人处理的事件就此消失。所以这里返回非 None，drain 据此转死信。
+        """
         monkeypatch.delitem(TASK_BY_ROUTING_KEY, "episode.uploaded")
         payload = uploaded_payload()
         _, event_id, decoded = decode_envelope(envelope("episode.uploaded", payload))
         worker = RabbitWorker(queue=JobType.INGEST, settings=Settings(queue_backend="rabbit"))
 
-        with caplog.at_level(logging.WARNING):
-            await worker.dispatch(
-                ConsumedEvent(
-                    routing_key="episode.uploaded", event_id=event_id, payload=decoded, handle=None
-                )
+        unhandled = await worker.dispatch(
+            ConsumedEvent(
+                routing_key="episode.uploaded", event_id=event_id, payload=decoded, handle=None
             )
+        )
 
-        assert "无对应 Celery task" in caplog.text
+        assert unhandled is not None, "无人处理时必须返回原因，否则会被 ack 掉"
+        assert "episode.uploaded" in unhandled
 
 
 class TestPayloadModelsMatchRegistry:

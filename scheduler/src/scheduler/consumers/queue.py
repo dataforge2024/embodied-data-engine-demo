@@ -94,6 +94,22 @@ class FileQueueConsumer:
         self._attempts.pop(event.event_id, None)
         self._move(self._path_of(event), self._processed_path)
 
+    def dead_letter(self, event: ConsumedEvent, *, reason: str) -> None:
+        """无人处理的消息进死信，不算「已处理」。
+
+        契约要求「worker 不得确认一条它没有实际处理的消息」—— ack 会把消息归档掉，
+        订阅了却无人处理的事件就此静默消失。进死信才留得住证据。
+        """
+        logger.error(
+            "事件无人处理，转入死信 routing_key=%s event_id=%s reason=%s",
+            event.routing_key,
+            event.event_id,
+            reason,
+        )
+        self._seen.add(event.event_id)
+        self._attempts.pop(event.event_id, None)
+        self._move(self._path_of(event), self._dlq_path)
+
     def reject(self, event: ConsumedEvent, *, reason: str) -> bool:
         """处理失败。
 
