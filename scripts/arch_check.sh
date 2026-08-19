@@ -51,6 +51,18 @@ for pkg in app scheduler agent algo_common; do
   check contract "$pkg" "contract 反向依赖业务模块 ${pkg}"
 done
 
+# Platform 不得依赖 celery：它是发布方，只发领域事件。
+# 用 celery.send_task() 就得知道 Scheduler 的内部 task 名，那是跨模块耦合。
+# 见 openspec/changes/scheduler-celery-rabbitmq/design.md 第 1 节。
+check platform 'celery' 'platform 依赖 celery（发布方不该是 Celery 客户端）'
+check contract 'celery' 'contract 依赖 celery（底座不该知道执行框架）'
+
+# celery 只能出现在 Scheduler 的依赖里
+if grep -qE '^\s*"?celery' platform/pyproject.toml 2>/dev/null; then
+  echo "✗ platform/pyproject.toml 声明了 celery 依赖"
+  fail=1
+fi
+
 # 跨目录 sys.path 注入
 hits=$(grep -rnE "sys\.path.*\.\./" --include='*.py' \
   contract platform scheduler agent algo 2>/dev/null)
