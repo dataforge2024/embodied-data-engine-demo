@@ -64,8 +64,12 @@ class Worker:
         """暴露消费者，供测试与 drain 断言。"""
         return self._consumer
 
-    async def handle(self, event: ConsumedEvent) -> None:
-        """按 routing_key 分派处理。"""
+    async def handle(self, event: ConsumedEvent) -> str | None:
+        """按 routing_key 分派处理。
+
+        返回 ``None`` 表示已处理；返回字符串表示**没有实际处理**，字符串是原因 ——
+        调用方据此转死信而不是 ack。契约要求 worker 不得确认一条它没处理的消息。
+        """
         if isinstance(event.payload, EpisodeUploaded):
             await self._pipeline.handle_episode_uploaded(event.payload)
 
@@ -96,8 +100,10 @@ class Worker:
             )
 
         else:
-            # 契约里注册了新事件但这里没加分支 —— 静默消费会让事件像被处理了一样消失
-            logger.warning("事件无对应处理分支，已消费但未处理 routing_key=%s", event.routing_key)
+            # 契约里注册了新事件但这里没加分支。ack 掉等于静默丢弃，所以交回调用方转死信
+            return f"无对应处理分支：{event.routing_key}"
+
+        return None
 
     async def drain(self) -> int:
         """把当前队列里的消息全部处理完，返回处理条数。
@@ -107,10 +113,14 @@ class Worker:
         handled = 0
         while (event := self._consumer.fetch()) is not None:
             try:
-                await self.handle(event)
+                unhandled = await self.handle(event)
             except Exception as exc:
                 logger.exception("处理事件失败 routing_key=%s", event.routing_key)
                 self._consumer.reject(event, reason=str(exc))
+                continue
+            if unhandled is not None:
+                # 没人处理的消息不能 ack —— 那会让它像处理过一样消失
+                self._consumer.dead_letter(event, reason=unhandled)
                 continue
             self._consumer.ack(event)
             handled += 1
