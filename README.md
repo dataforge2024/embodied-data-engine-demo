@@ -64,13 +64,25 @@ make demo
 ## 其余命令
 
 ```bash
-make contract-test      # 契约测试（166 个，守 80% 覆盖率）
+make contract-test      # 契约测试（守 80% 覆盖率）
 make contract-gen       # 生成 events/*.json + types/contract.ts
 make conformance        # 跨模块契约一致性 + 依赖铁律
 make e2e                # 端到端流程测试
 make check              # 全量：lint + 类型 + 测试 + 架构约束
 make clean-runtime      # 清掉本地运行数据（DB / 队列 / 对象存储）
 ```
+
+走真 RabbitMQ 的话：
+
+```bash
+cp .env.example .env    # 凭据不入库，仓库是 public
+make broker-up          # 起 broker（含管理台 :15672）
+make demo-rabbit        # 同一份 demo 剧本，换成真 broker 跑
+make broker-down        # 停掉并清数据卷
+```
+
+`make demo` 与 `make demo-rabbit` 跑的是**同一份剧本**，只有 `RDH_QUEUE_BACKEND` 不同 ——
+剧本能同时跑通两个后端，本身就是「切后端不用改调用方」的证据。
 
 单模块命令见 `Makefile`。
 
