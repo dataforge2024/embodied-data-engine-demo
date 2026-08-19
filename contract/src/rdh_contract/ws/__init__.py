@@ -1,12 +1,16 @@
 """Agent ↔ Platform WebSocket 协议。"""
 
 from .protocol import (
+    CONSOLE_ADAPTER,
     DOWNSTREAM_ADAPTER,
     HEARTBEAT_INTERVAL_SECONDS,
     HEARTBEAT_TIMEOUT_SECONDS,
     UPSTREAM_ADAPTER,
     WS_PROTOCOL_VERSION,
     AckFrame,
+    ConsoleAgentStatusFrame,
+    ConsoleFrame,
+    ConsoleUploadProgressFrame,
     DownstreamFrame,
     EpisodeStatusFrame,
     ErrorFrame,
@@ -18,16 +22,21 @@ from .protocol import (
     TaskPushFrame,
     UploadGrantFrame,
     UploadProgressFrame,
+    UploadTriggerFrame,
     UpstreamFrame,
 )
 
 __all__ = [
+    "CONSOLE_ADAPTER",
     "DOWNSTREAM_ADAPTER",
     "HEARTBEAT_INTERVAL_SECONDS",
     "HEARTBEAT_TIMEOUT_SECONDS",
     "UPSTREAM_ADAPTER",
     "WS_PROTOCOL_VERSION",
     "AckFrame",
+    "ConsoleAgentStatusFrame",
+    "ConsoleFrame",
+    "ConsoleUploadProgressFrame",
     "DownstreamFrame",
     "EpisodeStatusFrame",
     "ErrorFrame",
@@ -39,5 +48,6 @@ __all__ = [
     "TaskPushFrame",
     "UploadGrantFrame",
     "UploadProgressFrame",
+    "UploadTriggerFrame",
     "UpstreamFrame",
 ]

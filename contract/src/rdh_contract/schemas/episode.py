@@ -86,6 +86,9 @@ class EpisodeCreate(ContractModel):
 
     task_id: str = Field(description="所属采集任务 ID")
     agent_id: str = Field(description="采集 PC 的 Agent ID")
+    recorded_by: str | None = Field(
+        default=None, description="采集员 user_id；Agent 无人值守采集时为 None"
+    )
     local_path: str = Field(description="Agent 本地 MCAP 路径，用于断电恢复定位")
     robot_model: str | None = Field(default=None, description="机器人型号")
     scene: str | None = Field(default=None, description="采集场景标识")
@@ -101,6 +104,9 @@ class Episode(ContractModel):
     episode_id: str = Field(description="Episode ID（UUID）")
     task_id: str = Field(description="所属采集任务 ID")
     agent_id: str = Field(description="采集来源 Agent ID")
+    recorded_by: str | None = Field(
+        default=None, description="采集员 user_id；Agent 无人值守采集时为 None"
+    )
     status: EpisodeStatus = Field(description="当前状态")
 
     object_key: str | None = Field(default=None, description="MinIO 中的 MCAP 对象键")

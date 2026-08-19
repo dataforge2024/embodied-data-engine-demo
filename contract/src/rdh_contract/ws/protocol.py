@@ -39,7 +39,12 @@ class MessageType(StrEnum):
     DOWN_TASK_PUSH = "down.task_push"
     DOWN_TASK_CANCEL = "down.task_cancel"
     DOWN_UPLOAD_GRANT = "down.upload_grant"
+    DOWN_UPLOAD_TRIGGER = "down.upload_trigger"
     DOWN_ERROR = "down.error"
+
+    # 控制台推送（Platform → 浏览器）
+    CONSOLE_AGENT_STATUS = "console.agent_status"
+    CONSOLE_UPLOAD_PROGRESS = "console.upload_progress"
 
 
 # ---- 上行消息 ----
@@ -134,6 +139,22 @@ class UploadGrantFrame(ContractModel):
     expires_at: datetime = Field(description="凭据过期时间（UTC）")
 
 
+class UploadTriggerFrame(ContractModel):
+    """催促 Agent 立即回传（SysOps 手动触发）。
+
+    Agent 平时靠目录监听自动上传，本帧用于监听漏掉或上传失败后的人工补救：
+    Agent 收到后重扫任务目录，把待上传文件重新入队。
+
+    ``task_id`` 为 ``None`` 时重扫全部任务目录。本帧是**幂等提示**而非命令 ——
+    已在队列里的文件不会重复上传，Agent 侧靠文件所在阶段目录判定。
+    """
+
+    type: Literal[MessageType.DOWN_UPLOAD_TRIGGER] = MessageType.DOWN_UPLOAD_TRIGGER
+    message_id: str = Field(description="消息 ID，Agent 需回 ack")
+    task_id: str | None = Field(default=None, description="限定任务，None 表示全部")
+    reason: str | None = Field(default=None, description="触发原因，供 Agent 日志留痕")
+
+
 class ErrorFrame(ContractModel):
     """下行错误。"""
 
@@ -150,8 +171,56 @@ UpstreamFrame = Annotated[
 ]
 """Agent → Platform 的消息联合类型。"""
 
+# ---- 控制台推送（Platform → 浏览器）----
+
+
+class ConsoleAgentStatusFrame(ContractModel):
+    """Agent 上下线通知。
+
+    浏览器靠本帧即时翻状态，不必轮询 ``GET /agents``。触发点有三处：
+    Agent WS 注册成功、WS 断开、心跳超时被判离线。
+    """
+
+    type: Literal[MessageType.CONSOLE_AGENT_STATUS] = MessageType.CONSOLE_AGENT_STATUS
+    agent_id: str = Field(description="Agent ID")
+    online: bool = Field(description="是否在线")
+    hostname: str | None = Field(default=None, description="主机名，注册时带上")
+    at: datetime = Field(description="状态变更时刻（UTC）")
+
+
+class ConsoleUploadProgressFrame(ContractModel):
+    """上传进度推送。
+
+    Agent 的 ``up.upload_progress`` 到达后转给浏览器，让 Episode 列表的
+    进度条即时动起来。
+
+    计量单位跟上行帧一致，用**分片数**而非字节数 —— Agent 只上报分片进度，
+    这里若声明字节就得凭空造数。``percent`` 由 Platform 从分片数算出，
+    省得每个前端各算一遍。
+    """
+
+    type: Literal[MessageType.CONSOLE_UPLOAD_PROGRESS] = MessageType.CONSOLE_UPLOAD_PROGRESS
+    episode_id: str = Field(description="Episode ID")
+    agent_id: str = Field(description="来源 Agent ID")
+    uploaded_parts: int = Field(ge=0, description="已完成分片数")
+    total_parts: int = Field(gt=0, description="总分片数")
+    percent: float = Field(ge=0, le=100, description="百分比，由分片数算出")
+
+
+ConsoleFrame = Annotated[
+    ConsoleAgentStatusFrame | ConsoleUploadProgressFrame,
+    Field(discriminator="type"),
+]
+"""Platform → 浏览器的消息联合类型。"""
+
+
 DownstreamFrame = Annotated[
-    RegisteredFrame | TaskPushFrame | TaskCancelFrame | UploadGrantFrame | ErrorFrame,
+    RegisteredFrame
+    | TaskPushFrame
+    | TaskCancelFrame
+    | UploadGrantFrame
+    | UploadTriggerFrame
+    | ErrorFrame,
     Field(discriminator="type"),
 ]
 """Platform → Agent 的消息联合类型。"""
@@ -162,14 +231,21 @@ UPSTREAM_ADAPTER: TypeAdapter[UpstreamFrame] = TypeAdapter(UpstreamFrame)
 DOWNSTREAM_ADAPTER: TypeAdapter[DownstreamFrame] = TypeAdapter(DownstreamFrame)
 """解析下行帧。Agent 侧用：``DOWNSTREAM_ADAPTER.validate_json(raw)``。"""
 
+CONSOLE_ADAPTER: TypeAdapter[ConsoleFrame] = TypeAdapter(ConsoleFrame)
+"""解析控制台帧。前端类型由 ``types/contract.ts`` 提供，此适配器供后端测试用。"""
+
 
 __all__ = [
+    "CONSOLE_ADAPTER",
     "DOWNSTREAM_ADAPTER",
     "HEARTBEAT_INTERVAL_SECONDS",
     "HEARTBEAT_TIMEOUT_SECONDS",
     "UPSTREAM_ADAPTER",
     "WS_PROTOCOL_VERSION",
     "AckFrame",
+    "ConsoleAgentStatusFrame",
+    "ConsoleFrame",
+    "ConsoleUploadProgressFrame",
     "DownstreamFrame",
     "EpisodeStatusFrame",
     "ErrorFrame",
@@ -181,5 +257,6 @@ __all__ = [
     "TaskPushFrame",
     "UploadGrantFrame",
     "UploadProgressFrame",
+    "UploadTriggerFrame",
     "UpstreamFrame",
 ]
