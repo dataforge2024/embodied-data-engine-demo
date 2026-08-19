@@ -40,7 +40,9 @@ for extra in (
 ):
     sys.path.append(str(extra))
 
-RUNTIME = REPO_ROOT / ".runtime" / "demo"
+# demo 与 `make dev` 共用同一个运行目录，否则 demo 跑完 Web UI 里看不到数据。
+# 与 platform/app/core/config.py、agent/src/agent/config.py 的 DEFAULT_RUNTIME_DIR 一致。
+RUNTIME = REPO_ROOT / ".runtime"
 
 STEP_WIDTH = 72
 
@@ -62,7 +64,8 @@ def ok(text: str) -> None:
 
 async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反而难读
     """跑完整链路。"""
-    # ---- 干净起步：每次 demo 用全新运行目录，避免上次残留干扰断言 ----
+    # ---- 干净起步：每次 demo 重置运行目录，避免上次残留干扰断言 ----
+    # 注意这会清掉 `make dev` 期间积累的本地数据，等同 `make clean-runtime`。
     if RUNTIME.exists():
         shutil.rmtree(RUNTIME)
     RUNTIME.mkdir(parents=True)
@@ -142,12 +145,14 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
             password_hash=hash_password("demo-only-pass"),
             roles=(Role.ADMIN,),
         )
+        # 采集员。后续核验/标注/审核阶段复用它的 user_id —— 那些是直接调 service 层，
+        # 不过路由守卫，所以此处不需要给它 verifier/annotator/reviewer 角色。
         operator_user = await users.create(
             user_id=str(uuid.uuid4()),
-            username="operator",
-            display_name="标注员",
+            username="recorder",
+            display_name="采集员",
             password_hash=hash_password("demo-only-pass"),
-            roles=(Role.VERIFIER, Role.ANNOTATOR, Role.REVIEWER),
+            roles=(Role.RECORDER,),
         )
         agents = AgentNodeRepository(session, heartbeat_timeout_seconds=45)
         await agents.register(agent_id="agent-demo-01", hostname="collect-pc-01", version="0.1.0")
@@ -187,6 +192,7 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
             task_id=task.task_id,
             agent_id="agent-demo-01",
             status=EpisodeStatus.RECORDING,
+            recorded_by=operator_user.user_id,
             robot_model="rm-75-6f",
             scene="kitchen",
         )
@@ -212,7 +218,13 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     from agent.store.sqlite import StateStore
     from agent.uploader.chunked import LocalChunkUploader
 
-    store = StateStore(settings.object_store_root.parent / "agent-state.sqlite")
+    # 走 Agent 自己的配置，而不是从 Platform 的路径推算 —— 两边同读 RDH_STATE_DB_PATH。
+    from agent.config import get_settings as agent_settings
+
+    agent_settings.cache_clear()
+    agent_conf = agent_settings()
+    agent_conf.ensure_dirs()
+    store = StateStore(agent_conf.state_db_path)
     store.record_episode(episode_id=episode_id, task_id=task.task_id, local_path=local_path)
     store.finish_recording(
         episode_id,
@@ -299,11 +311,13 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
         return 1
     ok(f"ingest-worker 取到 {event.routing_key} · event_id {event.event_id[:8]}")
 
+    # uploaded → processing 由 Platform 在发出 episode.uploaded 时自己完成，
+    # demo 不再代劳 —— 早先这里手动补一跳，掩盖了生产链路没人做这一跳的缺陷。
     async with factory() as session:
-        outcome = await make_lifecycle(session).start_processing(episode_id)
-        await session.commit()
-    status_trail.append(outcome.episode.status.value)
-    ok(f"状态推进 → {outcome.episode.status.value}")
+        stored = await EpisodeRepository(session).find_by_id(episode_id)
+        assert stored is not None
+    status_trail.append(stored.status.value)
+    ok(f"状态已就位 → {stored.status.value}（Platform 发事件时推进）")
 
     runner = SubprocessRunner(
         algo_root=REPO_ROOT / "algo",

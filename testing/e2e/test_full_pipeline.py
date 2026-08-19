@@ -168,7 +168,9 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             )
         )
         await session.commit()
-    assert outcome.episode.status is EpisodeStatus.UPLOADED
+    # 上传回调落定的是 processing：事件投递即视为进入处理，Scheduler 只上报结果、
+    # 不改 Platform 状态，所以 uploaded → processing 由 Platform 自己在发事件时完成。
+    assert outcome.episode.status is EpisodeStatus.PROCESSING
     assert publisher.pending_count("ingest") == 1, "应发出一条 episode.uploaded"
 
     # ---- 4. Scheduler 消费（交互⑥）+ 算子执行（交互⑦）----
@@ -197,11 +199,13 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
     assert isinstance(event.payload, EpisodeUploaded)
     assert event.payload.episode_id == episode_id
 
+    # 这里原本手动补 start_processing —— 那是在替生产代码打补丁，掩盖了「没人做
+    # uploaded → processing」这个真实缺陷。现在 Platform 在发事件时自己推进，
+    # 测试只需确认状态已经就位。
     async with factory() as session:
-        episodes = EpisodeRepository(session)
-        lifecycle = EpisodeLifecycleService(episodes=episodes, publisher=publisher)
-        await lifecycle.start_processing(episode_id)
-        await session.commit()
+        stored = await EpisodeRepository(session).find_by_id(episode_id)
+        assert stored is not None
+        assert stored.status is EpisodeStatus.PROCESSING
 
     runner = SubprocessRunner(
         algo_root=REPO_ROOT / "algo",
