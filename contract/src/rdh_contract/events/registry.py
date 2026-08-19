@@ -9,8 +9,6 @@ from collections.abc import Mapping
 from ..enums import JobType
 from ..schemas.base import ContractModel
 from .payloads import (
-    AlgoCompleted,
-    AlgoFailed,
     AnnotationApproved,
     DatasetBuildRequested,
     EpisodeRejected,
@@ -50,8 +48,6 @@ class EventSpec(ContractModel):
 EVENT_MODELS: Mapping[str, type[ContractModel]] = {
     "episode.uploaded": EpisodeUploaded,
     "episode.rejected": EpisodeRejected,
-    "algo.completed": AlgoCompleted,
-    "algo.failed": AlgoFailed,
     "annotation.approved": AnnotationApproved,
     "dataset.build_requested": DatasetBuildRequested,
 }
@@ -71,21 +67,6 @@ EVENT_REGISTRY: Mapping[str, EventSpec] = {
         exchange=EXCHANGE_MAIN,
         consumer_queue=JobType.NOTIFY,
         description="Episode 被打回，通知采集人重采",
-    ),
-    "algo.completed": EventSpec(
-        routing_key="algo.completed",
-        model_name="AlgoCompleted",
-        exchange=EXCHANGE_MAIN,
-        consumer_queue=JobType.NOTIFY,
-        description="单个算子执行成功，聚合后回调 Platform",
-    ),
-    "algo.failed": EventSpec(
-        routing_key="algo.failed",
-        model_name="AlgoFailed",
-        exchange=EXCHANGE_MAIN,
-        consumer_queue=JobType.NOTIFY,
-        description="算子执行失败，回调 Platform 置 failed 并告警",
-        max_retries=1,
     ),
     "annotation.approved": EventSpec(
         routing_key="annotation.approved",

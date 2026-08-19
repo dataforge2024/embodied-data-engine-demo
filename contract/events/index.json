@@ -2,22 +2,6 @@
   "contract_version": "0.1.0",
   "events": [
     {
-      "consumer_queue": "notify",
-      "description": "单个算子执行成功，聚合后回调 Platform",
-      "max_retries": 3,
-      "model": "AlgoCompleted",
-      "routing_key": "algo.completed",
-      "schema_file": "algo.completed.json"
-    },
-    {
-      "consumer_queue": "notify",
-      "description": "算子执行失败，回调 Platform 置 failed 并告警",
-      "max_retries": 1,
-      "model": "AlgoFailed",
-      "routing_key": "algo.failed",
-      "schema_file": "algo.failed.json"
-    },
-    {
       "consumer_queue": "tool",
       "description": "标注审核通过，触发格式转换与训练集并入",
       "max_retries": 3,

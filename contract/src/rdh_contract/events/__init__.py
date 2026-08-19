@@ -1,8 +1,6 @@
 """RabbitMQ 事件定义与注册表。"""
 
 from .payloads import (
-    AlgoCompleted,
-    AlgoFailed,
     AnnotationApproved,
     DatasetBuildRequested,
     EpisodeRejected,
@@ -26,8 +24,6 @@ __all__ = [
     "EVENT_REGISTRY",
     "EXCHANGE_DLX",
     "EXCHANGE_MAIN",
-    "AlgoCompleted",
-    "AlgoFailed",
     "AnnotationApproved",
     "DatasetBuildRequested",
     "EpisodeRejected",
