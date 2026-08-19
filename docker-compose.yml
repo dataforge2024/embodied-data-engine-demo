@@ -1,0 +1,38 @@
+# 本地基础设施：只起 RabbitMQ。
+#
+# 其余替身仍是进程内的（SQLite ← PostgreSQL / 本地目录 ← MinIO / 子进程 ← K8s Job），
+# 因为它们不需要独立服务就能验证语义。RabbitMQ 不同：投递保证、死信、重试计数是 broker
+# 的行为，文件队列只能模仿个大概，所以这一项要真起。
+#
+# 凭据全部经环境变量注入 —— 仓库是 public，值不得入库。
+# 起之前先 `cp .env.example .env` 并按需改值（.env 已在 .gitignore 里）。
+#
+#   make broker-up      # 起 broker 并等健康检查通过
+#   make demo-rabbit    # 走真 broker 跑一遍 8 条交互
+#   make broker-down    # 停掉并清数据卷
+
+services:
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    container_name: rdh-rabbitmq
+    hostname: rdh-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?请先设置 RABBITMQ_USER（见 .env.example）}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?请先设置 RABBITMQ_PASSWORD（见 .env.example）}
+    ports:
+      # AMQP 与管理台都只绑 127.0.0.1 —— 不对局域网暴露
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      # 等到真能收发再算就绪，单纯 ping 端口会在 broker 还在启动时就通过
+      test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:

@@ -96,7 +96,6 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
 
     banner(f"RobotDataHub MVP Demo · 契约 v{contract_version}")
     step(f"运行目录 {RUNTIME.relative_to(REPO_ROOT)}")
-    step("替身：SQLite ← PostgreSQL / 本地目录 ← MinIO / 文件队列 ← RabbitMQ / 子进程 ← K8s Job")
 
     # ---- Platform 初始化 ----
     from app.core.config import get_settings
@@ -117,12 +116,29 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     from app.repositories.user import UserRepository
     from app.services.callbacks import CallbackService
     from app.services.episode_lifecycle import EpisodeLifecycleService
-    from app.services.event_publisher import FileQueuePublisher
     from app.services.object_store import LocalObjectStore
     from app.services.review import ReviewService
     from app.services.task import TaskService
 
-    publisher = FileQueuePublisher(settings.event_queue_dir)
+    # Scheduler 的配置要先就位：队列适配层两个后端都要用到它
+    from scheduler.config import get_settings as scheduler_settings
+
+    scheduler_settings.cache_clear()
+    sched = scheduler_settings()
+    sched.ensure_dirs()
+
+    from demo_queue import build_demo_queue
+
+    queues = build_demo_queue(
+        backend=settings.queue_backend,
+        amqp_url=settings.amqp_url,
+        queue_dir=settings.event_queue_dir,
+        sched=sched,
+    )
+    await queues.purge()  # broker 里可能留着上次跑的消息
+    step(f"替身：{queues.substitute_note}")
+
+    publisher = queues.publisher
     object_store = LocalObjectStore(settings.object_store_root)
     factory = get_session_factory()
     status_trail: list[str] = []
@@ -284,28 +300,15 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     status_trail.append(outcome.episode.status.value)
     ok("服务端独立重算 checksum 通过（不信任 Agent 的声明）")
     ok(f"状态推进 → {outcome.episode.status.value}")
-    ok(f"已发布 episode.uploaded（交互⑤）· ingest 队列深度 {publisher.pending_count('ingest')}")
+    ok(f"已发布 episode.uploaded（交互⑤）· ingest 队列深度 {await queues.depth('ingest')}")
 
     # ============ 阶段 4：Scheduler 消费 + 算子 ============
     banner("阶段 4 · Scheduler 消费事件（交互⑥）并执行算子（交互⑦）")
 
-    from scheduler.config import get_settings as scheduler_settings
-
-    scheduler_settings.cache_clear()
-    sched = scheduler_settings()
-    sched.ensure_dirs()
-
-    from scheduler.consumers.queue import FileQueueConsumer
     from scheduler.k8s.job_builder import build_job_manifest, build_spec
     from scheduler.k8s.runner import SubprocessRunner
 
-    consumer = FileQueueConsumer(
-        queue_dir=sched.event_queue_dir,
-        dlq_dir=sched.dlq_dir,
-        processed_dir=sched.processed_dir,
-        queue_name="ingest",
-    )
-    event = consumer.fetch()
+    event = await queues.fetch("ingest")
     if event is None:
         print("✗ Scheduler 未取到事件，链路断裂")
         return 1
@@ -362,8 +365,11 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
         )
         step(f"K8s Job 名 {manifest['metadata']['name'][:52]} · TTL {spec.ttl_seconds}s")
 
-    consumer.ack(event)
-    ok(f"事件已 ack · 已处理归档 {consumer.processed_count()} 条 · 死信 {consumer.dlq_count()} 条")
+    await queues.ack("ingest", event)
+    ok(
+        f"事件已 ack · 已处理 {await queues.processed_count()} 条 · "
+        f"死信 {await queues.dlq_count()} 条"
+    )
 
     # ============ 阶段 5：结果回调 ============
     banner("阶段 5 · Scheduler 回调 Platform（交互⑧）")
@@ -458,21 +464,15 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
         await session.commit()
     status_trail.append(outcome.episode.status.value)
     ok(f"审核通过 → {outcome.episode.status.value}")
-    ok(f"已发布 annotation.approved · tool 队列深度 {publisher.pending_count('tool')}")
+    ok(f"已发布 annotation.approved · tool 队列深度 {await queues.depth('tool')}")
 
     # ============ 阶段 7：tool-worker 消费 ============
     banner("阶段 7 · tool-worker 消费 annotation.approved")
 
-    tool_consumer = FileQueueConsumer(
-        queue_dir=sched.event_queue_dir,
-        dlq_dir=sched.dlq_dir,
-        processed_dir=sched.processed_dir,
-        queue_name="tool",
-    )
-    tool_event = tool_consumer.fetch()
+    tool_event = await queues.fetch("tool")
     if tool_event is not None:
         ok(f"tool-worker 取到 {tool_event.routing_key}（真实实现在此并入训练集）")
-        tool_consumer.ack(tool_event)
+        await queues.ack("tool", tool_event)
 
     # ============ 阶段 8：汇总 ============
     banner("阶段 8 · 全链路汇总")
@@ -521,9 +521,13 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     if len(files) > 8:
         print(f"    …… 另有 {len(files) - 8} 个")
 
-    print(f"\n  队列状态：待消费 ingest={publisher.pending_count('ingest')} "
-          f"tool={publisher.pending_count('tool')} notify={publisher.pending_count('notify')}")
-    print(f"  死信：{consumer.dlq_count()} 条")
+    print(
+        f"\n  队列状态（{queues.backend}）：待消费 ingest={await queues.depth('ingest')} "
+        f"tool={await queues.depth('tool')} notify={await queues.depth('notify')}"
+    )
+    print(f"  死信：{await queues.dlq_count()} 条")
+
+    await queues.close()
 
     success = final_episode.status is EpisodeStatus.PUBLISHED
     banner("✓ Demo 成功：Episode 走完全链路到 published" if success else "✗ Demo 未达 published")
