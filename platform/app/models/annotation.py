@@ -7,10 +7,11 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Index, Integer, String, Text
+from sqlalchemy import JSON, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import UtcDateTime
 
 
 class AnnotationRow(Base):
@@ -29,8 +30,8 @@ class AnnotationRow(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     annotated_by: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
 
     __table_args__ = (Index("ix_annotations_episode", "episode_id"),)
 

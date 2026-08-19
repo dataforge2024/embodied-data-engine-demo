@@ -6,10 +6,11 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, String
+from sqlalchemy import JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import UtcDateTime
 
 
 class AgentNodeRow(Base):
@@ -22,10 +23,10 @@ class AgentNodeRow(Base):
     version: Mapped[str] = mapped_column(String(32), nullable=False)
 
     last_heartbeat: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     assigned_task_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
-    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    registered_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
 __all__ = ["AgentNodeRow"]
