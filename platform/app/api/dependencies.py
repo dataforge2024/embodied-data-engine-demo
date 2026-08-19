@@ -28,6 +28,7 @@ from app.services.callbacks import CallbackService
 from app.services.episode_lifecycle import EpisodeLifecycleService
 from app.services.event_publisher import EventPublisher, FileQueuePublisher
 from app.services.object_store import LocalObjectStore, ObjectStore
+from app.services.rabbit_publisher import RabbitPublisher
 from app.services.review import ReviewService
 from app.services.task import TaskService
 
@@ -38,9 +39,26 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 # ---- 基础设施 ----
 
 
+# AMQP 连接必须跨请求复用，不能每请求新建 —— 按 URL 缓存发布器实例。
+_RABBIT_PUBLISHERS: dict[str, RabbitPublisher] = {}
+
+
 def get_publisher(settings: SettingsDep) -> EventPublisher:
-    """事件发布器。生产切 RabbitMQ 实现时只改这里。"""
-    return FileQueuePublisher(settings.event_queue_dir)
+    """事件发布器。``RDH_QUEUE_BACKEND=file|rabbit`` 决定用哪个后端。"""
+    if not settings.uses_rabbit:
+        return FileQueuePublisher(settings.event_queue_dir)
+    publisher = _RABBIT_PUBLISHERS.get(settings.amqp_url)
+    if publisher is None:
+        publisher = RabbitPublisher(settings.amqp_url)
+        _RABBIT_PUBLISHERS[settings.amqp_url] = publisher
+    return publisher
+
+
+async def close_publisher() -> None:
+    """关闭已建立的 AMQP 连接。应用停机时由 lifespan 调用。"""
+    for publisher in list(_RABBIT_PUBLISHERS.values()):
+        await publisher.close()
+    _RABBIT_PUBLISHERS.clear()
 
 
 def get_object_store(settings: SettingsDep) -> ObjectStore:
@@ -202,6 +220,7 @@ __all__ = [
     "AuthServiceDep",
     "CallbackServiceDep",
     "CurrentUserDep",
+    "close_publisher",
     "EpisodeRepoDep",
     "LifecycleDep",
     "ObjectStoreDep",
