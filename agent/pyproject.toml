@@ -9,6 +9,9 @@ dependencies = [
     "httpx>=0.28.0",
     "pydantic-settings>=2.8.0",
     "websockets>=13.0",
+    "mcap>=1.2.0",
+    "watchdog>=6.0.0",
+    "oss2>=2.19.0",
 ]
 
 # 单目录模拟：用本地路径替代私有 registry。真实拆仓后删掉本节。

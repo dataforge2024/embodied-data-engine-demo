@@ -28,6 +28,7 @@ from app.repositories.agent_node import AgentNodeRepository
 from app.repositories.episode import EpisodeRepository
 from app.services.episode_lifecycle import EpisodeLifecycleService, EpisodeNotFoundError
 from app.services.event_publisher import EventPublisher
+from app.services.progress_tracker import ProgressThrottle
 from app.ws.manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ async def handle_agent_socket(
     await socket.accept()
     agent_id: str | None = None
     lifecycle = EpisodeLifecycleService(episodes=episodes, publisher=publisher)
+    throttle = ProgressThrottle()
 
     try:
         # ---- 第一帧必须是注册 ----
@@ -120,13 +122,47 @@ async def handle_agent_socket(
                     await _send_error(socket, code="EPISODE_NOT_FOUND", message="Episode 不存在")
 
             elif isinstance(frame, UploadProgressFrame):
-                # 进度仅用于观测，不落库（高频写会放大 IO）
-                logger.debug(
-                    "上传进度 episode=%s %d/%d",
+                # 节流落库：2秒 或 5% 或 末片
+                if throttle.should_write(
                     frame.episode_id,
-                    frame.uploaded_parts,
-                    frame.total_parts,
-                )
+                    uploaded_parts=frame.uploaded_parts,
+                    total_parts=frame.total_parts,
+                ):
+                    try:
+                        await episodes.update_upload_progress(
+                            frame.episode_id,
+                            uploaded_parts=frame.uploaded_parts,
+                            total_parts=frame.total_parts,
+                        )
+                        await session.commit()
+                        logger.debug(
+                            "进度已落库 episode=%s %d/%d",
+                            frame.episode_id,
+                            frame.uploaded_parts,
+                            frame.total_parts,
+                        )
+                        # 转发给浏览器控制台
+                        await manager.notify_upload_progress(
+                            episode_id=frame.episode_id,
+                            agent_id=agent_id,
+                            uploaded_parts=frame.uploaded_parts,
+                            total_parts=frame.total_parts,
+                        )
+                    except KeyError:
+                        await session.rollback()
+                        await _send_error(
+                            socket, code="EPISODE_NOT_FOUND", message="Episode 不存在"
+                        )
+                    except Exception:
+                        await session.rollback()
+                        logger.exception("进度落库失败 episode=%s", frame.episode_id)
+                else:
+                    logger.debug(
+                        "进度节流跳过 episode=%s %d/%d",
+                        frame.episode_id,
+                        frame.uploaded_parts,
+                        frame.total_parts,
+                    )
 
             elif isinstance(frame, AckFrame):
                 manager.ack(agent_id, frame.message_id)
@@ -141,7 +177,7 @@ async def handle_agent_socket(
         await session.rollback()
     finally:
         if agent_id is not None:
-            manager.disconnect(agent_id)
+            await manager.disconnect(agent_id)
 
 
 __all__ = ["handle_agent_socket"]

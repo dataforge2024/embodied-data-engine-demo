@@ -278,6 +278,8 @@ export interface Episode {
   task_id: string;
   /** 采集来源 Agent ID */
   agent_id: string;
+  /** 采集员 user_id；Agent 无人值守采集时为 None */
+  recorded_by?: string | null;
   /** 当前状态 */
   status: EpisodeStatus;
   /** MinIO 中的 MCAP 对象键 */
@@ -314,6 +316,8 @@ export interface EpisodeCreate {
   task_id: string;
   /** 采集 PC 的 Agent ID */
   agent_id: string;
+  /** 采集员 user_id；Agent 无人值守采集时为 None */
+  recorded_by?: string | null;
   /** Agent 本地 MCAP 路径，用于断电恢复定位 */
   local_path: string;
   /** 机器人型号 */
@@ -630,4 +634,32 @@ export interface TokenResponse {
   expires_in: number;
   /** 当前用户 */
   user: User;
+}
+
+/** Agent 上下线通知。 */
+export interface ConsoleAgentStatusFrame {
+  type?: "console.agent_status";
+  /** Agent ID */
+  agent_id: string;
+  /** 是否在线 */
+  online: boolean;
+  /** 主机名，注册时带上 */
+  hostname?: string | null;
+  /** 状态变更时刻（UTC） */
+  at: string;
+}
+
+/** 上传进度推送。 */
+export interface ConsoleUploadProgressFrame {
+  type?: "console.upload_progress";
+  /** Episode ID */
+  episode_id: string;
+  /** 来源 Agent ID */
+  agent_id: string;
+  /** 已完成分片数 */
+  uploaded_parts: number;
+  /** 总分片数 */
+  total_parts: number;
+  /** 百分比，由分片数算出 */
+  percent: number;
 }

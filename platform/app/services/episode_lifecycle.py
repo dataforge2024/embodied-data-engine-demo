@@ -87,7 +87,10 @@ class EpisodeLifecycleService:
         """交互③：上传完成 → ``uploaded``，随后发布 ``episode.uploaded``（交互⑤）。"""
         current = await self._require(episode_id)
 
-        if current.status is EpisodeStatus.UPLOADED:
+        # 重放识别：本方法落定的是 processing（见下方注释），因此「已处理过」
+        # 涵盖 uploaded 与其之后的所有状态 —— Agent 恢复流程会补发本回调，
+        # 只认 uploaded 会让补发撞上非法迁移。
+        if current.status is not EpisodeStatus.UPLOADING:
             return TransitionOutcome(episode=current, changed=False)
 
         assert_transition(current.status, EpisodeStatus.UPLOADED)
@@ -114,7 +117,16 @@ class EpisodeLifecycleService:
                 recorded_topics=recorded_topics,
             ),
         )
-        return TransitionOutcome(episode=episode, changed=True, published_event_id=event_id)
+
+        # 事件已投递即视为进入处理：Scheduler 只上报结果、不改 Platform 状态，
+        # 若这里不推进，它回调 algo-result 时 processing → verification_pending
+        # 会因当前仍是 uploaded 而非法（409），整条解析链路静默卡死。
+        processing = await self._episodes.apply_transition(
+            episode_id, target=EpisodeStatus.PROCESSING
+        )
+        return TransitionOutcome(
+            episode=processing, changed=True, published_event_id=event_id
+        )
 
     async def start_processing(self, episode_id: str) -> TransitionOutcome:
         """Scheduler 开始处理 → ``processing``。"""

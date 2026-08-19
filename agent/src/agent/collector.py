@@ -43,6 +43,11 @@ class Collector:
             max_retries=settings.max_upload_retries,
         )
 
+    @property
+    def platform(self) -> PlatformClient:
+        """暴露 Platform 客户端（daemon 模式需要调 fetch_assigned_tasks）。"""
+        return self._platform
+
     async def collect_once(
         self,
         *,

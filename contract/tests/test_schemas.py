@@ -36,8 +36,11 @@ from rdh_contract.schemas import (
 )
 from rdh_contract.schemas.scheduler import AlgoJobResult, AlgoResultCallback
 from rdh_contract.ws import (
+    CONSOLE_ADAPTER,
     DOWNSTREAM_ADAPTER,
     UPSTREAM_ADAPTER,
+    ConsoleAgentStatusFrame,
+    ConsoleUploadProgressFrame,
     HeartbeatFrame,
     MessageType,
     RegisterFrame,
@@ -546,9 +549,53 @@ class TestWebSocketProtocol:
             UPSTREAM_ADAPTER.validate_python({"type": "up.telepathy", "agent_id": "a1"})
 
     def test_all_message_types_prefixed_by_direction(self) -> None:
-        """每个消息类型都有方向前缀，避免误用。"""
+        """每个消息类型都有方向前缀，避免误用。
+
+        三个方向：``up.`` Agent→Platform，``down.`` Platform→Agent，
+        ``console.`` Platform→浏览器。
+        """
         for member in MessageType:
-            assert member.value.startswith(("up.", "down."))
+            assert member.value.startswith(("up.", "down.", "console."))
+
+    def test_console_agent_status_round_trip(self) -> None:
+        """Agent 上下线帧能按 type 判别解析回来。"""
+        original = ConsoleAgentStatusFrame(agent_id="a1", online=True, hostname="pc-01", at=NOW)
+        parsed = CONSOLE_ADAPTER.validate_json(original.model_dump_json())
+        assert parsed == original
+
+    def test_console_upload_progress_round_trip(self) -> None:
+        """上传进度帧能按 type 判别解析回来。"""
+        original = ConsoleUploadProgressFrame(
+            episode_id="e1",
+            agent_id="a1",
+            uploaded_parts=5,
+            total_parts=10,
+            percent=50.0,
+        )
+        parsed = CONSOLE_ADAPTER.validate_json(original.model_dump_json())
+        assert parsed == original
+
+    def test_console_frames_reject_out_of_range_percent(self) -> None:
+        """百分比越界要被挡住。"""
+        with pytest.raises(ValidationError):
+            ConsoleUploadProgressFrame(
+                episode_id="e1",
+                agent_id="a1",
+                uploaded_parts=1,
+                total_parts=1,
+                percent=101.0,
+            )
+
+    def test_console_progress_rejects_zero_total_parts(self) -> None:
+        """总分片数为 0 会让百分比除零，契约层直接挡住。"""
+        with pytest.raises(ValidationError):
+            ConsoleUploadProgressFrame(
+                episode_id="e1",
+                agent_id="a1",
+                uploaded_parts=0,
+                total_parts=0,
+                percent=0.0,
+            )
 
     def test_round_trip_serialization(self) -> None:
         """序列化后能原样解析回来。"""

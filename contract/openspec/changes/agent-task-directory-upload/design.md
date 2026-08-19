@@ -122,7 +122,10 @@ Agent 当前的主循环是 `await client.wait_task()` — 等 Platform 经 WebS
 ```python
 class ChunkUploader(Protocol):
     def upload(
-        self, *, source: Path, object_key: str,
+        self,
+        *,
+        source: Path,
+        object_key: str,
         already_uploaded: tuple[int, ...] = (),
         on_part_done: Callable[[int], object] | None = None,
     ) -> UploadOutcome: ...

@@ -63,6 +63,7 @@ from rdh_contract.schemas import (
     VerifyResult,
 )
 from rdh_contract.state_machine import EPISODE_TRANSITIONS, TERMINAL_STATES
+from rdh_contract.ws import ConsoleAgentStatusFrame, ConsoleUploadProgressFrame
 
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "types" / "contract.ts"
 
@@ -107,6 +108,9 @@ MODELS: tuple[type[BaseModel], ...] = (
     User,
     LoginRequest,
     TokenResponse,
+    # 控制台 WS 推送帧 —— 前端订阅 /ws/console 后按 type 分派
+    ConsoleAgentStatusFrame,
+    ConsoleUploadProgressFrame,
 )
 
 # JSON Schema 基础类型 → TS 类型

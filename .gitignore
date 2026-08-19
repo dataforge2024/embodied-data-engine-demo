@@ -26,6 +26,10 @@ dist/
 *.db
 *.mcap
 
+# 本地进程日志（nohup 起服务时产生）
+nohup.*.out
+nohup.out
+
 # 编辑器 / 系统
 .DS_Store
 .idea/

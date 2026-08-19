@@ -10,10 +10,11 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Index, Integer, String, Text
+from sqlalchemy import JSON, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import UtcDateTime
 
 
 class EpisodeRow(Base):
@@ -24,6 +25,7 @@ class EpisodeRow(Base):
     episode_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     task_id: Mapped[str] = mapped_column(String(64), nullable=False)
     agent_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_by: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
 
     object_key: Mapped[str | None] = mapped_column(String(512))
@@ -35,13 +37,14 @@ class EpisodeRow(Base):
     key_frames: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
     segments: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
     quality: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    upload_progress: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     robot_model: Mapped[str | None] = mapped_column(String(128))
     scene: Mapped[str | None] = mapped_column(String(128))
     reject_reason: Mapped[str | None] = mapped_column(Text)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
 
     __table_args__ = (
         # 队列查询：按状态捞待核验/待标注，按 (status, created_at) 保证 FIFO

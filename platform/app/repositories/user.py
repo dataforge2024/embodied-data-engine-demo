@@ -74,6 +74,12 @@ class UserRepository:
             return None
         return row_to_user(row), row.password_hash
 
+    async def find_all(self) -> tuple[User, ...]:
+        """全部用户，按登录名排序。demo 规模下不分页。"""
+        stmt = select(UserRow).order_by(UserRow.username)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return tuple(row_to_user(r) for r in rows)
+
     async def count(self) -> int:
         """用户总数，用于判断是否需要初始化种子数据。"""
         from sqlalchemy import func

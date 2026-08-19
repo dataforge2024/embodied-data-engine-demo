@@ -75,7 +75,8 @@ class PlatformClient:
                 },
                 headers=self._auth_headers(),
             )
-        if response.status_code != 200:
+        # Platform 的 POST /episodes 声明的是 201（见 routes/episodes.py），不是 200
+        if response.status_code not in (200, 201):
             raise PlatformError(f"创建 Episode 失败 {response.status_code}：{response.text[:200]}")
         episode_id: str = response.json()["data"]["episode_id"]
         return episode_id
@@ -128,6 +129,31 @@ class PlatformClient:
         if response.status_code != 200:
             raise PlatformError(f"上传回调失败 {response.status_code}：{response.text[:300]}")
         return True
+
+    async def fetch_assigned_tasks(self, agent_id: str) -> list[dict]:
+        """拉取分派给指定 Agent 的任务（交互① 补发，启动与重连时调）。
+
+        用 Agent 专用凭据而非用户 JWT —— Agent 是 WS 注册的实体，没有用户身份。
+
+        失败返回空列表而不抛异常 —— 拉不到任务不该阻止 Agent 启动，
+        WS 重连后 Platform 还会推。
+        """
+        headers = {"X-Agent-Token": self._agent_token, "X-Agent-ID": agent_id}
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            try:
+                response = await client.get(
+                    f"{self._base_url}/agents/me/tasks", headers=headers
+                )
+            except httpx.HTTPError as exc:
+                logger.warning("拉取已分派任务失败：%s", exc)
+                return []
+        if response.status_code != 200:
+            logger.warning(
+                "拉取已分派任务失败 %d：%s", response.status_code, response.text[:200]
+            )
+            return []
+        tasks: list[dict] = response.json()["data"]
+        return tasks
 
     async def health(self) -> bool:
         """探测 Platform 可用性。"""

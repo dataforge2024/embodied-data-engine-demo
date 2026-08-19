@@ -1,0 +1,94 @@
+/* 阶段进度条。变量在 App.css 里定义。 */
+
+.stage-bar {
+  display: flex;
+  align-items: center;
+}
+
+.stage-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stage-connector {
+  width: 18px;
+  height: 2px;
+  background: var(--surface-3);
+  margin-right: 6px;
+}
+
+.stage-step.done .stage-connector,
+.stage-step.current .stage-connector {
+  background: var(--accent-dim);
+}
+
+.stage-dot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stage-step.done .stage-dot {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+/* 当前格用实心强调色 + 光圈，扫一眼就能定位 */
+.stage-step.current .stage-dot {
+  background: var(--accent);
+  color: #06121b;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.stage-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.stage-step.done .stage-label {
+  color: var(--text-secondary);
+}
+
+.stage-step.current .stage-label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stage-bar.compact .stage-connector {
+  width: 10px;
+  margin-right: 4px;
+}
+
+.stage-bar.compact .stage-step {
+  gap: 4px;
+}
+
+.stage-bar.compact .stage-dot {
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
+  font-size: 0.6rem;
+}
+
+/* 脱轨态：不画进度，直接说明流程中断 */
+.stage-derailed-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 45%, transparent);
+  color: #fca5a5;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}

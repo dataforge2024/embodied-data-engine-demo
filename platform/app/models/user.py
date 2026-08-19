@@ -5,10 +5,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, String
+from sqlalchemy import JSON, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import UtcDateTime
 
 
 class UserRow(Base):
@@ -22,7 +23,7 @@ class UserRow(Base):
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     roles: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
 __all__ = ["UserRow"]
