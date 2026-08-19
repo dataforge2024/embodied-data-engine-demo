@@ -1,5 +1,6 @@
-allowBuilds:
-  esbuild: set this to true or false
 # esbuild 需要执行安装脚本（下载平台二进制），显式放行以便非交互安装。
+# pnpm 11 用 allowBuilds 取代交互确认；留占位串会让 install 直接失败。
+allowBuilds:
+  esbuild: true
 onlyBuiltDependencies:
   - esbuild
