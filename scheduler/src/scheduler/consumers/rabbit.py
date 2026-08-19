@@ -154,6 +154,22 @@ class RabbitConsumer:
         self._attempts.pop(event.event_id, None)
         await self._message_of(event).ack()
 
+    async def dead_letter(self, event: ConsumedEvent, *, reason: str) -> None:
+        """无人处理的消息进死信，不算「已处理」。
+
+        契约要求「worker 不得确认一条它没有实际处理的消息」—— ack 之后消息即消失，
+        订阅了却无人处理的事件就此静默丢弃。``nack(requeue=False)`` 让 broker 按
+        ``x-dead-letter-exchange`` 投进死信，证据留得住。
+        """
+        logger.error(
+            "事件无人处理，转入死信 routing_key=%s event_id=%s reason=%s",
+            event.routing_key,
+            event.event_id,
+            reason,
+        )
+        self._attempts.pop(event.event_id, None)
+        await self._message_of(event).nack(requeue=False)
+
     async def reject(self, event: ConsumedEvent, *, reason: str) -> bool:
         """处理失败。返回 True 表示会重投，False 表示已进死信。
 

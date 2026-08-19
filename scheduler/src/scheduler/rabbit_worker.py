@@ -38,17 +38,16 @@ class RabbitWorker:
         """暴露消费者，供测试与断言。"""
         return self._consumer
 
-    async def dispatch(self, event: ConsumedEvent) -> None:
+    async def dispatch(self, event: ConsumedEvent) -> str | None:
         """把事件交给对应的 Celery task。
 
-        找不到 task 说明契约注册了新事件但这里没加映射 —— 报警而不是静默丢弃。
+        返回 ``None`` 表示已投递；返回字符串表示**没有实际处理**，字符串是原因 ——
+        调用方据此转死信而不是 ack。契约要求 worker 不得确认一条它没处理的消息。
         """
         task = TASK_BY_ROUTING_KEY.get(event.routing_key)
         if task is None:
-            logger.warning(
-                "事件无对应 Celery task，已消费但未处理 routing_key=%s", event.routing_key
-            )
-            return
+            # ack 掉等于静默丢弃，所以交回调用方转死信
+            return f"无对应 Celery task：{event.routing_key}"
 
         # payload 已按契约校验过，转 JSON 交给 Celery（跨进程只能传可序列化的值）
         task.delay(event.payload.model_dump(mode="json"))
@@ -58,16 +57,21 @@ class RabbitWorker:
             event.routing_key,
             event.event_id,
         )
+        return None
 
     async def drain(self) -> int:
         """把当前队列里的消息全部转成 Celery 任务，返回条数。"""
         handled = 0
         while (event := await self._consumer.fetch()) is not None:
             try:
-                await self.dispatch(event)
+                unhandled = await self.dispatch(event)
             except Exception as exc:
                 logger.exception("投递 Celery 任务失败 routing_key=%s", event.routing_key)
                 await self._consumer.reject(event, reason=str(exc))
+                continue
+            if unhandled is not None:
+                # 没人处理的消息不能 ack —— 那会让它像处理过一样消失
+                await self._consumer.dead_letter(event, reason=unhandled)
                 continue
             await self._consumer.ack(event)
             handled += 1
