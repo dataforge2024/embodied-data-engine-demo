@@ -20,12 +20,27 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """启动与关闭钩子。
 
-    启动时先校验生产配置（默认凭据不得上生产），再建目录与表结构。
+    启动时先校验生产配置（默认凭据不得上生产），再建目录、表结构、种子用户。
     """
     settings = get_settings()
     settings.assert_production_ready()
     settings.ensure_dirs()
     await init_schema()
+
+    # 幂等种子：无用户时创建 demo 用户（生产环境不会走到这里，assert_production_ready 拦住默认密码）
+    from app.db.session import get_session_factory
+    from app.services.seed import ensure_demo_users
+
+    async with get_session_factory()() as session:
+        users = await ensure_demo_users(session)
+        await session.commit()
+        if users:
+            logger.info(
+                "已创建 %d 个 demo 用户（%s）",
+                len(users),
+                "/".join(u.username for u in users),
+            )
+
     logger.info(
         "Platform 启动 env=%s contract=%s queue=%s",
         settings.environment,

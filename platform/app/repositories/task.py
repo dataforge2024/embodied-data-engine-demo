@@ -100,6 +100,22 @@ class TaskRepository:
         await self._session.flush()
         return row_to_task(row)
 
+    async def find_assigned_to(self, agent_id: str) -> list[CollectTask]:
+        """查询分派给指定 Agent 的所有 assigned 状态任务（交互① Agent 重启拉取）。"""
+        stmt = (
+            select(CollectTaskRow)
+            .where(CollectTaskRow.status == TaskStatus.ASSIGNED.value)
+            .order_by(CollectTaskRow.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        rows = result.scalars().all()
+        # 过滤出真正包含该 agent_id 的任务
+        return [
+            row_to_task(row)
+            for row in rows
+            if any(a['agent_id'] == agent_id for a in row.assignments)
+        ]
+
     async def _require_row(self, task_id: str) -> CollectTaskRow:
         """取行，不存在抛 KeyError。"""
         row = await self._session.get(CollectTaskRow, task_id)

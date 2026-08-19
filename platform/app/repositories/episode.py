@@ -22,6 +22,7 @@ def row_to_episode(row: EpisodeRow) -> Episode:
         episode_id=row.episode_id,
         task_id=row.task_id,
         agent_id=row.agent_id,
+        recorded_by=row.recorded_by,
         status=EpisodeStatus(row.status),
         object_key=row.object_key,
         size_bytes=row.size_bytes,
@@ -52,6 +53,7 @@ class EpisodeRepository:
         task_id: str,
         agent_id: str,
         status: EpisodeStatus,
+        recorded_by: str | None = None,
         robot_model: str | None = None,
         scene: str | None = None,
     ) -> Episode:
@@ -61,6 +63,7 @@ class EpisodeRepository:
             episode_id=episode_id,
             task_id=task_id,
             agent_id=agent_id,
+            recorded_by=recorded_by,
             status=status.value,
             streams=[],
             key_frames=[],
@@ -183,6 +186,22 @@ class EpisodeRepository:
         stmt = select(EpisodeRow.status, func.count()).group_by(EpisodeRow.status)
         rows: Any = (await self._session.execute(stmt)).all()
         return {status: count for status, count in rows}
+
+    async def update_upload_progress(
+        self, episode_id: str, *, uploaded_parts: int, total_parts: int
+    ) -> None:
+        """更新上传进度（节流器调用）。
+
+        格式：``{"uploaded_parts": 10, "total_parts": 50, "updated_at": "2026-08-19T..."}``
+        """
+        row = await self._require_row(episode_id)
+        row.upload_progress = {
+            "uploaded_parts": uploaded_parts,
+            "total_parts": total_parts,
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        row.updated_at = datetime.now(UTC)
+        await self._session.flush()
 
     async def _require_row(self, episode_id: str) -> EpisodeRow:
         """取行，不存在抛 KeyError（上层转 404）。"""

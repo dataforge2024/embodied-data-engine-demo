@@ -66,12 +66,17 @@ async def create_episode(
     session: SessionDep,
     user: CurrentUserDep,
 ) -> ApiResponse[Episode]:
-    """创建 Episode，初始状态为 ``recording``。"""
+    """创建 Episode，初始状态为 ``recording``。
+
+    ``recorded_by`` 取自调用方 JWT 而非 payload —— 采集员身份由 Platform 认定，
+    不采信 Agent 上报，避免 Agent 冒名。
+    """
     episode = await episodes.create(
         episode_id=str(uuid.uuid4()),
         task_id=payload.task_id,
         agent_id=payload.agent_id,
         status=INITIAL_STATE,
+        recorded_by=user.user_id,
         robot_model=payload.robot_model,
         scene=payload.scene,
     )
