@@ -17,6 +17,9 @@ from rdh_contract.schemas import TaskRequirement
 from rdh_contract.schemas.agent import AgentTaskPush
 from rdh_contract.ws import (
     HEARTBEAT_INTERVAL_SECONDS,
+    ConsoleAgentStatusFrame,
+    ConsoleFrame,
+    ConsoleUploadProgressFrame,
     RegisteredFrame,
     TaskCancelFrame,
     TaskPushFrame,
@@ -41,6 +44,76 @@ class ConnectionManager:
 
     def __init__(self) -> None:
         self._connections: dict[str, AgentConnection] = {}
+        # 浏览器控制台连接。无身份键 —— 同一用户可开多个标签页，全部收同样的广播。
+        self._consoles: list[WebSocket] = []
+
+    # ---- 控制台（浏览器）----
+
+    def add_console(self, socket: WebSocket) -> None:
+        """登记一个浏览器连接。"""
+        self._consoles.append(socket)
+
+    def remove_console(self, socket: WebSocket) -> None:
+        """摘掉一个浏览器连接。"""
+        if socket in self._consoles:
+            self._consoles.remove(socket)
+
+    @property
+    def console_count(self) -> int:
+        """当前浏览器连接数。"""
+        return len(self._consoles)
+
+    async def broadcast_console(self, frame: ConsoleFrame) -> int:
+        """向所有浏览器推一帧，返回成功条数。
+
+        发送失败的连接就地摘除 —— 浏览器关标签页时 FastAPI 不一定已经触发
+        disconnect，留着会让后续广播反复抛错。
+        """
+        payload = frame.model_dump_json()  # type: ignore[union-attr]
+        dead: list[WebSocket] = []
+        sent = 0
+        for socket in list(self._consoles):
+            try:
+                await socket.send_text(payload)
+                sent += 1
+            except Exception:  # noqa: BLE001 —— 连接已断，摘掉即可
+                dead.append(socket)
+        for socket in dead:
+            self.remove_console(socket)
+        return sent
+
+    async def notify_agent_status(
+        self, agent_id: str, *, online: bool, hostname: str | None = None
+    ) -> None:
+        """广播 Agent 上下线。"""
+        await self.broadcast_console(
+            ConsoleAgentStatusFrame(
+                agent_id=agent_id,
+                online=online,
+                hostname=hostname,
+                at=datetime.now(UTC),
+            )
+        )
+
+    async def notify_upload_progress(
+        self,
+        *,
+        episode_id: str,
+        agent_id: str,
+        uploaded_parts: int,
+        total_parts: int,
+    ) -> None:
+        """广播上传进度。``percent`` 在此算出，前端不再各算一遍。"""
+        percent = min(100.0, round(uploaded_parts / total_parts * 100, 1)) if total_parts else 0.0
+        await self.broadcast_console(
+            ConsoleUploadProgressFrame(
+                episode_id=episode_id,
+                agent_id=agent_id,
+                uploaded_parts=uploaded_parts,
+                total_parts=total_parts,
+                percent=percent,
+            )
+        )
 
     async def register(self, agent_id: str, socket: WebSocket) -> AgentConnection:
         """注册连接并回 ``down.registered``。
@@ -64,11 +137,13 @@ class ConnectionManager:
                 heartbeat_interval_seconds=HEARTBEAT_INTERVAL_SECONDS,
             ).model_dump_json()
         )
+        await self.notify_agent_status(agent_id, online=True)
         return connection
 
-    def disconnect(self, agent_id: str) -> None:
-        """移除连接。"""
+    async def disconnect(self, agent_id: str) -> None:
+        """移除连接并广播离线。"""
         self._connections.pop(agent_id, None)
+        await self.notify_agent_status(agent_id, online=False)
 
     def touch(self, agent_id: str) -> None:
         """更新最后活跃时间（收到心跳时调用）。"""
@@ -141,6 +216,21 @@ class ConnectionManager:
         if connection is None:
             return False
         frame = TaskCancelFrame(message_id=str(uuid.uuid4()), task_id=task_id, reason=reason)
+        await connection.socket.send_text(frame.model_dump_json())
+        return True
+
+    async def trigger_upload(
+        self, agent_id: str, *, task_id: str | None = None, reason: str | None = None
+    ) -> bool:
+        """催促 Agent 重扫并上传（SysOps 手动触发）。"""
+        from rdh_contract.ws import UploadTriggerFrame
+
+        connection = self._connections.get(agent_id)
+        if connection is None:
+            return False
+        frame = UploadTriggerFrame(
+            message_id=str(uuid.uuid4()), task_id=task_id, reason=reason
+        )
         await connection.socket.send_text(frame.model_dump_json())
         return True
 
