@@ -11,6 +11,7 @@ import logging
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
+from rdh_contract.schemas import TransitionActor
 from rdh_contract.state_machine import InvalidTransitionError
 from rdh_contract.ws import (
     UPSTREAM_ADAPTER,
@@ -110,9 +111,17 @@ async def handle_agent_socket(
                 await session.commit()
 
             elif isinstance(frame, EpisodeStatusFrame):
-                # Agent 的上报不是权威，仍过守卫
+                # Agent 的上报不是权威，仍过守卫。
+                # 轨迹里记成系统推进而非某个用户：Agent 是无人值守进程，
+                # 记成采集员会让轨迹出现他没做过的操作（design.md 第 7 节）。
                 try:
-                    await lifecycle.transition(frame.episode_id, target=frame.status)
+                    await lifecycle.transition(
+                        frame.episode_id,
+                        target=frame.status,
+                        actor=TransitionActor(
+                            actor_type="system", system_component="agent_report"
+                        ),
+                    )
                     await session.commit()
                 except InvalidTransitionError as exc:
                     await session.rollback()

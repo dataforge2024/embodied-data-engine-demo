@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 
 import pytest
 from rdh_contract.enums import EpisodeStatus, ReviewDecision
-from rdh_contract.schemas import AnnotationSubmit, Segment, VerifyResult
+from rdh_contract.schemas import AnnotationSubmit, Segment, TransitionActor, VerifyResult
 from rdh_contract.schemas.scheduler import AnnotationProcessingCallback
 from rdh_contract.state_machine import INITIAL_STATE, InvalidTransitionError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -102,11 +102,12 @@ class _Harness:
             EpisodeStatus.ANNOTATION_PROCESSING,
             EpisodeStatus.ANNOTATION_PENDING,
         )
+        actor = TransitionActor(actor_type="system", system_component="test_harness")
         for target in path:
             if target is status:
-                await self.lifecycle.transition(self.episode_id, target=target)
+                await self.lifecycle.transition(self.episode_id, target=target, actor=actor)
                 return
-            await self.lifecycle.transition(self.episode_id, target=target)
+            await self.lifecycle.transition(self.episode_id, target=target, actor=actor)
 
     def verify(self, decision: ReviewDecision, reason: str | None = None) -> VerifyResult:
         return VerifyResult(

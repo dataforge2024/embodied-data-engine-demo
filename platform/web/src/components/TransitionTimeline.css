@@ -1,0 +1,117 @@
+/* 状态流转轨迹。变量在 App.css 里定义。 */
+
+.transition-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-empty {
+  margin: 0;
+  padding: var(--spacing-md);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.timeline-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  position: relative;
+}
+
+/* 竖线连起相邻两条，视觉上是一条时间轴而非独立卡片 */
+.timeline-row::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 28px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-row:last-child::before {
+  display: none;
+}
+
+.timeline-marker {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  font-size: 0.7rem;
+  line-height: 1;
+  z-index: 1;
+}
+
+/* 人工与系统的区分：图标已不同，再加边框色 */
+.timeline-row.by-user .timeline-marker {
+  background: var(--surface-4);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.timeline-row.by-system .timeline-marker {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.timeline-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.timeline-transition {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.timeline-transition strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.timeline-arrow {
+  color: var(--text-muted);
+}
+
+.timeline-time {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-meta {
+  display: flex;
+  gap: var(--spacing-sm);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.timeline-row.by-user .timeline-actor {
+  color: var(--accent);
+}
+
+.timeline-reason {
+  margin: 2px 0 0;
+  padding: 4px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}

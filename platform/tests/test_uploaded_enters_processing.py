@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from rdh_contract.enums import EpisodeStatus
+from rdh_contract.schemas import TransitionActor
 from rdh_contract.state_machine import INITIAL_STATE
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -69,7 +70,11 @@ async def _uploaded_episode(
         robot_model="rm-75-6f",
         scene="kitchen",
     )
-    await lifecycle.transition(episode_id, target=EpisodeStatus.UPLOADING)
+    await lifecycle.transition(
+        episode_id,
+        target=EpisodeStatus.UPLOADING,
+        actor=TransitionActor(actor_type="system", system_component="agent_report"),
+    )
     await lifecycle.mark_uploaded(
         episode_id,
         object_key=f"episodes/{episode_id}/raw.mcap",

@@ -23,6 +23,7 @@ from app.repositories.annotation import AnnotationRepository
 from app.repositories.dataset import DatasetRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
+from app.repositories.transition import TransitionRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
 from app.services.callbacks import CallbackService
@@ -106,19 +107,29 @@ def get_agent_repo(session: SessionDep, settings: SettingsDep) -> AgentNodeRepos
     )
 
 
+def get_transition_repo(session: SessionDep) -> TransitionRepository:
+    """状态流转历史仓储。"""
+    return TransitionRepository(session)
+
+
 EpisodeRepoDep = Annotated[EpisodeRepository, Depends(get_episode_repo)]
 TaskRepoDep = Annotated[TaskRepository, Depends(get_task_repo)]
 AnnotationRepoDep = Annotated[AnnotationRepository, Depends(get_annotation_repo)]
 DatasetRepoDep = Annotated[DatasetRepository, Depends(get_dataset_repo)]
 UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
 AgentRepoDep = Annotated[AgentNodeRepository, Depends(get_agent_repo)]
+TransitionRepoDep = Annotated[TransitionRepository, Depends(get_transition_repo)]
 
 
 # ---- 服务 ----
 
 
 def get_lifecycle(episodes: EpisodeRepoDep, publisher: PublisherDep) -> EpisodeLifecycleService:
-    """Episode 生命周期服务 —— 状态变更的唯一入口。"""
+    """Episode 生命周期服务 —— 状态变更的唯一入口。
+
+    轨迹仓储不在这里注入：记录点收口在 Episode 仓储的状态写入方法内部
+    （design.md 第 7 节），本服务只负责把触发者传下去。
+    """
     return EpisodeLifecycleService(episodes=episodes, publisher=publisher)
 
 
@@ -238,6 +249,7 @@ __all__ = [
     "SettingsDep",
     "TaskRepoDep",
     "TaskServiceDep",
+    "TransitionRepoDep",
     "UserRepoDep",
     "current_user",
     "require_agent_token",

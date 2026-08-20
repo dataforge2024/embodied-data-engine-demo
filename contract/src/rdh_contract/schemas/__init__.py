@@ -16,6 +16,7 @@ from .scheduler import (
     AnnotationProcessingCallback,
 )
 from .task import CollectTask, TaskAssignment, TaskCreate, TaskRequirement
+from .transition import TransitionActor, TransitionRecord
 from .user import LoginRequest, TokenPayload, TokenResponse, User
 
 __all__ = [
@@ -48,6 +49,8 @@ __all__ = [
     "TaskRequirement",
     "TokenPayload",
     "TokenResponse",
+    "TransitionActor",
+    "TransitionRecord",
     "UploadCallback",
     "UploadProgress",
     "User",

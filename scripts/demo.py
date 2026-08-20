@@ -88,10 +88,11 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
         Segment,
         TaskCreate,
         TaskRequirement,
+        TransitionActor,
         VerifyResult,
     )
     from rdh_contract.schemas.agent import UploadCallback
-    from rdh_contract.schemas.scheduler import AlgoResultCallback
+    from rdh_contract.schemas.scheduler import AlgoResultCallback, AnnotationProcessingCallback
     from rdh_contract.state_machine import is_terminal
 
     banner(f"RobotDataHub MVP Demo · 契约 v{contract_version}")
@@ -113,6 +114,7 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     from app.repositories.annotation import AnnotationRepository
     from app.repositories.episode import EpisodeRepository
     from app.repositories.task import TaskRepository
+    from app.repositories.transition import TransitionRepository
     from app.repositories.user import UserRepository
     from app.services.callbacks import CallbackService
     from app.services.episode_lifecycle import EpisodeLifecycleService
@@ -252,7 +254,9 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
 
     async with factory() as session:
         outcome = await make_lifecycle(session).transition(
-            episode_id, target=EpisodeStatus.UPLOADING
+            episode_id,
+            target=EpisodeStatus.UPLOADING,
+            actor=TransitionActor(actor_type="system", system_component="agent_report"),
         )
         await session.commit()
     status_trail.append(outcome.episode.status.value)
@@ -424,6 +428,26 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     status_trail.append(outcome.episode.status.value)
     ok(f"核验通过 → {outcome.episode.status.value}")
 
+    # 送标处理：质检通过后不再直连 annotation_pending，中间是这个异步环节。
+    # 本阶段不跑算子（design.md 第 2 节），所以只是转个状态、没有可见耗时。
+    async with factory() as session:
+        callbacks = CallbackService(
+            lifecycle=make_lifecycle(session),
+            episodes=EpisodeRepository(session),
+            tasks=TaskRepository(session),
+            object_store=object_store,
+        )
+        outcome = await callbacks.handle_annotation_processing(
+            AnnotationProcessingCallback(
+                episode_id=episode_id,
+                succeeded=True,
+                reported_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    status_trail.append(outcome.episode.status.value)
+    ok(f"送标处理完成 → {outcome.episode.status.value}")
+
     # 标注人在预标注分段上修改，而不是从零画
     algo_segments = outcome.episode.segments
     edited = tuple(
@@ -484,11 +508,26 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
         agent_nodes = await AgentNodeRepository(
             session, heartbeat_timeout_seconds=45
         ).find_all()
+        transition_history = await TransitionRepository(session).get_history(episode_id)
 
     assert final_episode is not None and final_task is not None
 
     print(f"\n  状态轨迹（{len(status_trail)} 跳）：")
     print(f"    {' → '.join(status_trail)}")
+
+    # 落库的流转记录。上面那条 status_trail 是 demo 自己攒的，这条是从库里读的 ——
+    # 两者应当一致，不一致说明有状态变更绕过了记录点。
+    print(f"\n  流转记录（{len(transition_history)} 条，从库读取）：")
+    for record in transition_history:
+        actor = record.actor
+        who = (
+            f"人工 {actor.user_id}"
+            if actor.actor_type == "user"
+            else f"系统 {actor.system_component}"
+        )
+        stamp = record.occurred_at.strftime("%H:%M:%S")
+        line = f"    {stamp}  {record.from_status.value} → {record.to_status.value}  {who}"
+        print(f"{line}  · {record.reason}" if record.reason else line)
 
     print("\n  最终 Episode：")
     print(f"    ID            {final_episode.episode_id}")

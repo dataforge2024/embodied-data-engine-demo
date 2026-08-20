@@ -633,6 +633,32 @@ export interface Dataset {
   updated_at: string;
 }
 
+/** 流转触发者。 */
+export interface TransitionActor {
+  /** 人工推进还是系统推进 */
+  actor_type: "user" | "system";
+  /** 人工推进者；系统推进时为 None */
+  user_id?: string | null;
+  /** 系统环节名，如 upload_callback / scheduler；人工推进时为 None */
+  system_component?: string | null;
+}
+
+/** 一条状态流转记录。 */
+export interface TransitionRecord {
+  /** 所属 Episode */
+  episode_id: string;
+  /** 源状态 */
+  from_status: EpisodeStatus;
+  /** 目标状态 */
+  to_status: EpisodeStatus;
+  /** 触发者 */
+  actor: TransitionActor;
+  /** 打回/失败原因；正常推进为 None */
+  reason?: string | null;
+  /** 发生时间（UTC） */
+  occurred_at: string;
+}
+
 /** 用户视图。 */
 export interface User {
   /** 用户 ID（UUID） */

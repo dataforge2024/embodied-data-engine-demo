@@ -11,6 +11,7 @@ import {
   type CollectTask,
   type Episode,
   type TokenResponse,
+  type TransitionRecord,
   type User,
 } from "@contract";
 
@@ -144,6 +145,10 @@ export const fetchEpisodes = (params?: {
 };
 export const fetchEpisodeStats = () =>
   get<Record<string, number>>("/episodes/stats");
+
+/** 状态流转轨迹，按时间正序。停留时长由相邻两条的时间差推导。 */
+export const fetchTransitions = (episodeId: string) =>
+  get<TransitionRecord[]>(`/episodes/${episodeId}/transitions`);
 export const fetchAgents = () => get<AgentNode[]>("/agents");
 export const fetchOnlineAgents = () => get<string[]>("/agents/online");
 export const fetchUsers = () => get<User[]>("/users");

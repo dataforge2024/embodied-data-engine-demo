@@ -8,10 +8,11 @@
  * 下一步是等人还是等系统。
  *
  * failed / rejected 不属于任何阶段：线性进度条表达不了「死在第 2 格」，
- * 所以单独做脱轨态，由 UI 换一种画法。
+ * 所以单独做脱轨态，由 UI 换一种画法。传入流转轨迹时能定位中断位置
+ * （`GET /episodes/{id}/transitions`），否则退回「全格 blocked」。
  */
 
-import type { EpisodeStatus } from "@contract";
+import type { EpisodeStatus, TransitionRecord } from "@contract";
 
 export type Stage =
   | "collect_manual"
@@ -83,20 +84,49 @@ export function isDerailed(status: EpisodeStatus): boolean {
  */
 export type StageState = "done" | "current" | "pending" | "blocked";
 
-export function stageStates(status: EpisodeStatus): Record<Stage, StageState> {
+/**
+ * 从轨迹里找出脱轨前停在哪一格。
+ *
+ * 轨迹按时间正序，最后一条的 `from_status` 就是死之前的状态 —— 它必然是个正常态
+ * （failed / rejected 是终态，进去就出不来，不可能作为某次流转的源）。
+ */
+export function derailedAt(history: readonly TransitionRecord[]): Stage | null {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const record = history[i];
+    if (record === undefined) continue;
+    const stage = stageOf(record.from_status);
+    if (stage !== null) return stage;
+  }
+  return null;
+}
+
+export function stageStates(
+  status: EpisodeStatus,
+  history?: readonly TransitionRecord[],
+): Record<Stage, StageState> {
   const current = stageOf(status);
 
-  // 脱轨：卡在哪一格取决于死之前走到哪，但 Episode 只存当前状态，
-  // 拿不到历史。保守起见把所有阶段标 blocked，由调用方单独渲染脱轨态。
   if (current === null) {
-    return {
-      collect_manual: "blocked",
-      collect_auto: "blocked",
-      inspect_manual: "blocked",
-      annotate_auto: "blocked",
-      annotate_manual: "blocked",
-      done: "blocked",
-    };
+    // 脱轨：卡在哪一格取决于死之前走到哪。有轨迹就能定位 —— 中断格标 blocked，
+    // 之前的格子仍算走过，之后的才是到不了。没轨迹（调用方没取）退回全 blocked。
+    const brokeAt = history ? derailedAt(history) : null;
+    if (brokeAt === null) {
+      return {
+        collect_manual: "blocked",
+        collect_auto: "blocked",
+        inspect_manual: "blocked",
+        annotate_auto: "blocked",
+        annotate_manual: "blocked",
+        done: "blocked",
+      };
+    }
+    const brokeIndex = STAGE_ORDER.indexOf(brokeAt);
+    return Object.fromEntries(
+      STAGE_ORDER.map((stage, index): [Stage, StageState] => [
+        stage,
+        index < brokeIndex ? "done" : "blocked",
+      ]),
+    ) as Record<Stage, StageState>;
   }
 
   const currentIndex = STAGE_ORDER.indexOf(current);

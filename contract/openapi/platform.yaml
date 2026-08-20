@@ -152,6 +152,36 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /episodes/{episode_id}/transitions:
+    get:
+      tags: [episodes]
+      summary: 查询状态流转轨迹
+      description: |
+        按时间正序返回该 Episode 的全部状态流转记录。相邻两条记录的时间差即为
+        前一状态的停留时长 —— 停留时长不单独存字段，由调用方推导。
+
+        幂等重放（目标状态已达成）不留记录，所以轨迹里不会出现源目标相同的条目。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TransitionRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /tasks:
     get:
       tags: [tasks]
@@ -1386,6 +1416,44 @@ components:
           type: string
           format: date-time
         updated_at:
+          type: string
+          format: date-time
+
+    TransitionActor:
+      type: object
+      description: |
+        流转触发者。actor_type=user 时填 user_id，system 时填 system_component。
+        系统推进不伪装成某个用户 —— 否则轨迹里会出现管理员从没做过的操作。
+      required: [actor_type]
+      properties:
+        actor_type:
+          type: string
+          enum: [user, system]
+          description: 人工推进还是系统推进
+        user_id:
+          type: [string, 'null']
+          description: 人工推进者；系统推进时为 null
+        system_component:
+          type: [string, 'null']
+          description: 系统环节名，如 upload_callback / scheduler；人工推进时为 null
+
+    TransitionRecord:
+      type: object
+      description: 一条状态流转记录。只在状态真的变了时产生，幂等重放不留记录。
+      required: [episode_id, from_status, to_status, actor, occurred_at]
+      properties:
+        episode_id:
+          type: string
+        from_status:
+          $ref: '#/components/schemas/EpisodeStatus'
+        to_status:
+          $ref: '#/components/schemas/EpisodeStatus'
+        actor:
+          $ref: '#/components/schemas/TransitionActor'
+        reason:
+          type: [string, 'null']
+          description: 打回/失败原因；正常推进为 null
+        occurred_at:
           type: string
           format: date-time
 
