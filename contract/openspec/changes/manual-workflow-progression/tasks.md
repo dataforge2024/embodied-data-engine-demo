@@ -64,22 +64,41 @@
 - [ ] 6.9 `toolLink.ts` 确认 `annotation_processing` 不给人工入口（它在等系统）
 - [ ] 6.10 `tool` 侧若有状态映射一并补
 
-## 7. 导出数据集
+## 7. 状态流转记录
 
-- [ ] 7.1 `POST /datasets/build` 权限由 `LAB` 改 `ADMIN`
-- [ ] 7.2 校验纳入的 Episode 全部为 `published`，否则 422 并指出不合格的
-- [ ] 7.3 新增 `GET /datasets/{id}` 返回构建状态与产物位置
-- [ ] 7.4 `build_dataset` Celery task 由 stub 改为落地 `manifest.json`
-- [ ] 7.5 manifest 含 episode 清单、人工最终分段、算子产物 object_key、格式、发起人
-- [ ] 7.6 构建状态可查（进行中 / 完成 / 失败）
+记录点收口在 `apply_transition` —— 它是状态写入的唯一入口，见 design.md 第 7 节。
 
-## 8. 端到端验证
+- [ ] 7.1 新增流转历史表：episode_id、源状态、目标状态、发生时间、触发者、原因
+- [ ] 7.2 `apply_transition` 追加记录；重放（`changed=False`）与非法迁移都不记
+- [ ] 7.3 触发者分两类：人工记 `user_id`，系统记「系统 + 环节名」，不把系统伪装成某个用户
+- [ ] 7.4 `episode_lifecycle` 的各方法把触发者传下去（质检/标注/审核/导出传操作人，
+      上传回调与算子回调传系统）
+- [ ] 7.5 契约新增流转记录模型
+- [ ] 7.6 新增 `GET /episodes/{id}/transitions`，按时间正序返回；不存在的 Episode 返 404
+- [ ] 7.7 **测试**：正常推进留一条、重放不留、非法迁移不留、触发者归属正确
+- [ ] 7.8 控制台展开某条 Episode 的轨迹：时间、源→目标、触发者、原因、停留时长
+- [ ] 7.9 人工与系统推进在界面上可区分
+- [ ] 7.10 修掉 `stage.ts:78` 的短板：脱轨态借历史标出中断位置，
+      不再把所有阶段一律标 `blocked`
+- [ ] 7.11 **测试**：失败的 Episode 能定位到死在哪一阶段；质检打回与审核退回可区分
 
-- [ ] 8.1 复核现有 e2e：凡走 `verification_pending → annotation_pending` 的都会因中间多一跳而失败
-- [ ] 8.2 新增 e2e：五步人工推进走通一遍（质检 → 送标 → 标注 → 审核 → 导出）
-- [ ] 8.3 `make check` 全绿
-- [ ] 8.4 `make demo` 与 `make demo-rabbit` 都跑通
-- [ ] 8.5 浏览器实测：Tool 登录 → 三个工作台各操作一次 → Platform 看到状态推进
+## 8. 导出数据集
+
+- [ ] 8.1 `POST /datasets/build` 权限由 `LAB` 改 `ADMIN`
+- [ ] 8.2 校验纳入的 Episode 全部为 `published`，否则 422 并指出不合格的
+- [ ] 8.3 新增 `GET /datasets/{id}` 返回构建状态与产物位置
+- [ ] 8.4 `build_dataset` Celery task 由 stub 改为落地 `manifest.json`
+- [ ] 8.5 manifest 含 episode 清单、人工最终分段、算子产物 object_key、格式、发起人
+- [ ] 8.6 构建状态可查（进行中 / 完成 / 失败）
+
+## 9. 端到端验证
+
+- [ ] 9.1 复核现有 e2e：凡走 `verification_pending → annotation_pending` 的都会因中间多一跳而失败
+- [ ] 9.2 新增 e2e：五步人工推进走通一遍（质检 → 送标 → 标注 → 审核 → 导出）
+- [ ] 9.3 新增 e2e：走完一条后查轨迹，验证每一步都留了记录且顺序正确
+- [ ] 9.4 `make check` 全绿
+- [ ] 9.5 `make demo` 与 `make demo-rabbit` 都跑通
+- [ ] 9.6 浏览器实测：Tool 登录 → 三个工作台各操作一次 → Platform 看到状态推进与轨迹
 
 ## 不属于本 change
 
@@ -89,3 +108,6 @@
 - [ ] Tool 读 URL 参数做深链 —— Platform 侧已带上参数，Tool 侧读取另议
 - [ ] 场景 1 遗留的 3 处缺陷（Agent 不回 ack、`TaskCancelFrame` 零处理、
       `upload_progress` 读不到）—— 与本 change 无依赖
+- [ ] 流转记录的聚合视图（跨 Episode 看各环节平均耗时、瓶颈环节）—— 本 change 只做单条轨迹
+- [ ] 流转记录的归档/清理策略 —— POC 阶段只增不删
+- [ ] 任务状态与标注修订的变更历史 —— 本 change 只记 Episode 状态
