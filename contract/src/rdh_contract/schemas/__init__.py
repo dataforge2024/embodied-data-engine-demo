@@ -7,8 +7,14 @@ from .agent import AgentHeartbeat, AgentNode, AgentTaskPush, UploadCallback, Upl
 from .annotation import Annotation, AnnotationSubmit, ReviewResult, VerifyResult
 from .base import ContractModel
 from .common import ApiResponse, ErrorDetail, PageMeta, PaginatedResponse
+from .dataset import Dataset
 from .episode import Episode, EpisodeCreate, KeyFrame, QualityReport, Segment, SensorStream
-from .scheduler import AlgoJobResult, AlgoJobSpec, AlgoResultCallback
+from .scheduler import (
+    AlgoJobResult,
+    AlgoJobSpec,
+    AlgoResultCallback,
+    AnnotationProcessingCallback,
+)
 from .task import CollectTask, TaskAssignment, TaskCreate, TaskRequirement
 from .user import LoginRequest, TokenPayload, TokenResponse, User
 
@@ -20,10 +26,12 @@ __all__ = [
     "AlgoJobSpec",
     "AlgoResultCallback",
     "Annotation",
+    "AnnotationProcessingCallback",
     "AnnotationSubmit",
     "ApiResponse",
     "CollectTask",
     "ContractModel",
+    "Dataset",
     "Episode",
     "EpisodeCreate",
     "ErrorDetail",

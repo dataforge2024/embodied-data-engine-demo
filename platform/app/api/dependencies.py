@@ -20,6 +20,7 @@ from app.core.security import AuthError, decode_access_token, verify_service_tok
 from app.db.session import get_session
 from app.repositories.agent_node import AgentNodeRepository
 from app.repositories.annotation import AnnotationRepository
+from app.repositories.dataset import DatasetRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
 from app.repositories.user import UserRepository
@@ -88,6 +89,11 @@ def get_annotation_repo(session: SessionDep) -> AnnotationRepository:
     return AnnotationRepository(session)
 
 
+def get_dataset_repo(session: SessionDep) -> DatasetRepository:
+    """训练集仓储。"""
+    return DatasetRepository(session)
+
+
 def get_user_repo(session: SessionDep) -> UserRepository:
     """用户仓储。"""
     return UserRepository(session)
@@ -103,6 +109,7 @@ def get_agent_repo(session: SessionDep, settings: SettingsDep) -> AgentNodeRepos
 EpisodeRepoDep = Annotated[EpisodeRepository, Depends(get_episode_repo)]
 TaskRepoDep = Annotated[TaskRepository, Depends(get_task_repo)]
 AnnotationRepoDep = Annotated[AnnotationRepository, Depends(get_annotation_repo)]
+DatasetRepoDep = Annotated[DatasetRepository, Depends(get_dataset_repo)]
 UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
 AgentRepoDep = Annotated[AgentNodeRepository, Depends(get_agent_repo)]
 
@@ -220,6 +227,7 @@ __all__ = [
     "AuthServiceDep",
     "CallbackServiceDep",
     "CurrentUserDep",
+    "DatasetRepoDep",
     "close_publisher",
     "EpisodeRepoDep",
     "LifecycleDep",

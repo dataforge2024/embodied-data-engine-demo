@@ -175,6 +175,7 @@ class TestErrorResponses:
             "/annotation/{episode_id}/review",
             "/callbacks/upload-complete",
             "/callbacks/algo-result",
+            "/callbacks/annotation-processing",
         )
         for path in state_changing:
             post = spec["paths"][path]["post"]

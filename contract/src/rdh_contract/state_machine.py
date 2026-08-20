@@ -9,6 +9,11 @@ Platform 侧所有状态变更必须经 ``services/episode_lifecycle.py`` 单一
 - 终态没有出边
 - 每个状态从 :data:`INITIAL_STATE` 可达
 - 每个非终态都能走到某个终态（不存在活锁）
+
+主链路共 9 态::
+
+    recording → uploading → uploaded → processing → verification_pending
+      → annotation_processing → annotation_pending → annotation_review → published
 """
 
 from collections.abc import Mapping
@@ -59,11 +64,21 @@ EPISODE_TRANSITIONS: Mapping[EpisodeStatus, frozenset[EpisodeStatus]] = {
             EpisodeStatus.FAILED,
         }
     ),
-    # 人工核验（Tool，交互④）：通过进标注队列，打回则终止
+    # 人工核验（Tool，交互④）：通过进送标处理，打回则终止
+    #
+    # 注意这里不是直连 ANNOTATION_PENDING。质检通过后要先过一个异步的送标处理环节，
+    # 理由见 openspec/changes/manual-workflow-progression/design.md 第 1 节。
     EpisodeStatus.VERIFICATION_PENDING: frozenset(
         {
-            EpisodeStatus.ANNOTATION_PENDING,
+            EpisodeStatus.ANNOTATION_PROCESSING,
             EpisodeStatus.REJECTED,
+        }
+    ),
+    # 送标处理（Scheduler 异步，系统推进）：完成进标注队列，算子失败判 FAILED
+    EpisodeStatus.ANNOTATION_PROCESSING: frozenset(
+        {
+            EpisodeStatus.ANNOTATION_PENDING,
+            EpisodeStatus.FAILED,
         }
     ),
     # 人工标注（Tool）：提交后进审核

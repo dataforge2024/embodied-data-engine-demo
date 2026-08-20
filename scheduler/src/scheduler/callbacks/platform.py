@@ -7,7 +7,12 @@
 import logging
 
 import httpx
-from rdh_contract.schemas.scheduler import AlgoJobResult, AlgoResultCallback
+from rdh_contract.schemas.base import ContractModel
+from rdh_contract.schemas.scheduler import (
+    AlgoJobResult,
+    AlgoResultCallback,
+    AnnotationProcessingCallback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +49,40 @@ class PlatformClient:
             pipeline_complete=pipeline_complete,
             reported_at=datetime.now(UTC),
         )
+        return await self._post("/callbacks/algo-result", callback, episode_id=episode_id)
 
-        url = f"{self._base_url}/callbacks/algo-result"
+    async def report_annotation_processing(
+        self,
+        *,
+        episode_id: str,
+        succeeded: bool,
+        error_message: str | None = None,
+    ) -> dict[str, object]:
+        """上报送标处理结果。
+
+        驱动 ``annotation_processing → annotation_pending``（成功）或 ``→ failed``。
+        与 :meth:`report_algo_result` 是**两个不同端点**：后者的源状态是 ``processing``。
+        """
+        from datetime import UTC, datetime
+
+        callback = AnnotationProcessingCallback(
+            episode_id=episode_id,
+            succeeded=succeeded,
+            error_message=error_message,
+            reported_at=datetime.now(UTC),
+        )
+        return await self._post(
+            "/callbacks/annotation-processing", callback, episode_id=episode_id
+        )
+
+    async def _post(
+        self, path: str, callback: ContractModel, *, episode_id: str
+    ) -> dict[str, object]:
+        """POST 一个回调 payload，统一处理重放与错误。
+
+        409 视为**成功**：说明 Platform 侧状态已推进（重放），不该再重试。
+        """
+        url = f"{self._base_url}{path}"
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             try:
                 response = await client.post(

@@ -40,7 +40,11 @@ class ReviewService:
     async def submit_verification(self, result: VerifyResult) -> TransitionOutcome:
         """提交核验结果。
 
-        通过 → ``annotation_pending``；打回 → ``rejected`` 终态并发事件。
+        通过 → ``annotation_processing``（送标处理，异步）；打回 → ``rejected`` 终态并发事件。
+
+        通过后不再直接进 ``annotation_pending`` —— 中间多了一个送标环节，由 Scheduler
+        处理完再回调推进。理由见
+        ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
         """
         await self._lifecycle.assert_actionable(
             result.episode_id, expected=EpisodeStatus.VERIFICATION_PENDING
@@ -54,7 +58,7 @@ class ReviewService:
                 rejected_by=result.verified_by,
             )
         return await self._lifecycle.transition(
-            result.episode_id, target=EpisodeStatus.ANNOTATION_PENDING
+            result.episode_id, target=EpisodeStatus.ANNOTATION_PROCESSING
         )
 
     async def submit_annotation(

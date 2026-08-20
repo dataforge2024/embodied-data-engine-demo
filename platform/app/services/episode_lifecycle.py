@@ -144,6 +144,23 @@ class EpisodeLifecycleService:
             reject_reason=error_message or "算子流水线失败",
         )
 
+    async def finish_annotation_processing(
+        self, episode_id: str, *, succeeded: bool, error_message: str | None = None
+    ) -> TransitionOutcome:
+        """送标处理结束 → ``annotation_pending`` 或 ``failed``。
+
+        由 Scheduler 在质检通过后的送标环节结束时回调。与 :meth:`finish_processing`
+        分开而不复用，是因为两者的源状态不同（``annotation_processing`` 对
+        ``processing``），合成一个方法就得靠参数区分，回调方容易传错。
+        """
+        if succeeded:
+            return await self.transition(episode_id, target=EpisodeStatus.ANNOTATION_PENDING)
+        return await self.transition(
+            episode_id,
+            target=EpisodeStatus.FAILED,
+            reject_reason=error_message or "送标处理失败",
+        )
+
     async def reject(
         self, episode_id: str, *, reason: str, rejected_by: str, task_id: str | None = None
     ) -> TransitionOutcome:

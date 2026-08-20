@@ -5,12 +5,14 @@
 - :meth:`CallbackService.handle_upload_complete` —— Agent 调用，驱动 ``uploading → uploaded``
 - :meth:`CallbackService.handle_algo_result` —— Scheduler 调用，驱动
   ``processing → verification_pending / failed``
+- :meth:`CallbackService.handle_annotation_processing` —— Scheduler 调用，驱动
+  ``annotation_processing → annotation_pending / failed``
 """
 
 from rdh_contract.enums import AlgoOperator
 from rdh_contract.schemas import KeyFrame, QualityReport, Segment
 from rdh_contract.schemas.agent import UploadCallback
-from rdh_contract.schemas.scheduler import AlgoResultCallback
+from rdh_contract.schemas.scheduler import AlgoResultCallback, AnnotationProcessingCallback
 
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
@@ -102,6 +104,20 @@ class CallbackService:
             callback.episode_id,
             succeeded=callback.all_succeeded,
             error_message="；".join(errors) if errors else None,
+        )
+
+    async def handle_annotation_processing(
+        self, callback: AnnotationProcessingCallback
+    ) -> TransitionOutcome:
+        """送标处理结束：``annotation_processing → annotation_pending / failed``。
+
+        本阶段送标环节不跑算子（design.md 第 2 节），所以没有产物要落库 ——
+        只推进状态。将来接算子时在这里补落库逻辑，与 :meth:`handle_algo_result` 一致。
+        """
+        return await self._lifecycle.finish_annotation_processing(
+            callback.episode_id,
+            succeeded=callback.succeeded,
+            error_message=callback.error_message,
         )
 
 

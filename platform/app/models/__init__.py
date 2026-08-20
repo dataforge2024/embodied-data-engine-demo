@@ -3,6 +3,7 @@
 from app.models.agent_node import AgentNodeRow
 from app.models.annotation import AnnotationRow
 from app.models.collect_task import CollectTaskRow
+from app.models.dataset import DatasetRow
 from app.models.episode import EpisodeRow
 from app.models.user import UserRow
 
@@ -10,6 +11,7 @@ __all__ = [
     "AgentNodeRow",
     "AnnotationRow",
     "CollectTaskRow",
+    "DatasetRow",
     "EpisodeRow",
     "UserRow",
 ]

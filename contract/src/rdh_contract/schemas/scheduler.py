@@ -92,4 +92,36 @@ class AlgoResultCallback(ContractModel):
         return all(r.status is JobStatus.SUCCEEDED for r in self.results)
 
 
-__all__ = ["AlgoJobResult", "AlgoJobSpec", "AlgoResultCallback"]
+class AnnotationProcessingCallback(ContractModel):
+    """送标处理结果回调（Scheduler → ``POST /callbacks/annotation-processing``）。
+
+    驱动 ``annotation_processing → annotation_pending``（成功）或 ``→ failed``（失败）。
+
+    与 :class:`AlgoResultCallback` 是**两个不同端点**：后者的源状态是 ``processing``
+    （解析阶段），本回调的源状态是 ``annotation_processing``（送标阶段）。合成一个端点
+    就得靠额外字段区分「我在哪个阶段」，回调方容易传错 —— 理由见
+    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
+
+    本阶段送标环节不跑算子（同文档第 2 节），所以没有产物字段；将来要接算子时
+    在这里加。
+    """
+
+    episode_id: str = Field(description="Episode ID")
+    succeeded: bool = Field(description="送标处理是否成功")
+    error_message: str | None = Field(default=None, description="失败原因")
+    reported_at: datetime = Field(description="回调时间（UTC）")
+
+    @model_validator(mode="after")
+    def _require_error_on_failure(self) -> "AnnotationProcessingCallback":
+        """失败必须给出原因，否则 Episode 落到 failed 后排障无从下手。"""
+        if not self.succeeded and not self.error_message:
+            raise ValueError("succeeded=False 必须填写 error_message")
+        return self
+
+
+__all__ = [
+    "AlgoJobResult",
+    "AlgoJobSpec",
+    "AlgoResultCallback",
+    "AnnotationProcessingCallback",
+]

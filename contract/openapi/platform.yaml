@@ -483,6 +483,34 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /datasets/{dataset_id}:
+    get:
+      tags: [datasets]
+      summary: 获取训练集构建状态
+      description: |
+        返回构建状态与产物位置。没有这个端点，构建完成与否只能翻日志。
+        `status` 为 `succeeded` 时 `manifest_key` 才有值。
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Dataset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /agents:
     get:
       tags: [agents]
@@ -588,6 +616,47 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /callbacks/annotation-processing:
+    post:
+      tags: [callbacks]
+      summary: 送标处理结果回调（Scheduler 调用）
+      description: |
+        质检通过后的送标环节结束时调用，驱动 `annotation_processing → annotation_pending`
+        （成功）或 `→ failed`（失败，`error_message` 必填）。
+
+        **与 `/callbacks/algo-result` 是两个不同端点，不要合并。** 后者的源状态是
+        `processing`（解析阶段），本回调的源状态是 `annotation_processing`（送标阶段）。
+
+        鉴权用 Scheduler 专用凭据（`schedulerAuth`）。
+      security:
+        - schedulerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationProcessingCallback'
+      responses:
+        '200':
+          description: 已接收
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /health:
     get:
       tags: [health]
@@ -656,6 +725,12 @@ components:
       required: true
       schema:
         type: string
+    DatasetId:
+      name: dataset_id
+      in: path
+      required: true
+      schema:
+        type: string
 
   responses:
     Unauthorized:
@@ -706,6 +781,7 @@ components:
         - uploaded
         - processing
         - verification_pending
+        - annotation_processing
         - annotation_pending
         - annotation_review
         - published
@@ -1262,6 +1338,54 @@ components:
           type: boolean
           description: 仅为 true 时 Platform 才推进 Episode 状态
         reported_at:
+          type: string
+          format: date-time
+
+    AnnotationProcessingCallback:
+      type: object
+      description: 送标处理结果回调的请求体。源状态是 annotation_processing，与 algo-result 不同。
+      required: [episode_id, succeeded, reported_at]
+      properties:
+        episode_id:
+          type: string
+        succeeded:
+          type: boolean
+        error_message:
+          type: [string, 'null']
+          description: succeeded 为 false 时必填
+        reported_at:
+          type: string
+          format: date-time
+
+    Dataset:
+      type: object
+      description: 训练集构建视图。本阶段产物是 manifest 清单，非可训练的打包数据。
+      required: [dataset_id, status, episode_ids, output_format, requested_by, created_at, updated_at]
+      properties:
+        dataset_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        episode_ids:
+          type: array
+          minItems: 1
+          description: 纳入清单；构建时校验必须全部为 published
+          items:
+            type: string
+        output_format:
+          type: string
+          description: 导出格式，如 lerobot / rlds
+        requested_by:
+          type: string
+        manifest_key:
+          type: [string, 'null']
+          description: 产物位置（manifest.json 的对象键）；未构建完成时为 null
+        failure_reason:
+          type: [string, 'null']
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
 

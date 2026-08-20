@@ -283,6 +283,29 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             )
         )
         await session.commit()
+    assert outcome.episode.status is EpisodeStatus.ANNOTATION_PROCESSING
+
+    # ---- 6b. 送标处理回调（Scheduler，本阶段不跑算子）----
+    # 质检通过后不再直连 annotation_pending，中间多了这个异步环节。
+    from rdh_contract.schemas.scheduler import AnnotationProcessingCallback
+
+    async with factory() as session:
+        episodes = EpisodeRepository(session)
+        lifecycle = EpisodeLifecycleService(episodes=episodes, publisher=publisher)
+        callbacks = CallbackService(
+            lifecycle=lifecycle,
+            episodes=episodes,
+            tasks=TaskRepository(session),
+            object_store=store,
+        )
+        outcome = await callbacks.handle_annotation_processing(
+            AnnotationProcessingCallback(
+                episode_id=episode_id,
+                succeeded=True,
+                reported_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
     assert outcome.episode.status is EpisodeStatus.ANNOTATION_PENDING
 
     # ---- 7. 人工标注 ----

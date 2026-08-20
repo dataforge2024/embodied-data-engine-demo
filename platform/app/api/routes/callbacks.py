@@ -7,12 +7,15 @@
 ``/callbacks/algo-result``
     调用方 Scheduler，凭据 ``X-Scheduler-Token``，
     驱动 ``processing → verification_pending`` 或 ``→ failed``
+``/callbacks/annotation-processing``
+    调用方 Scheduler，凭据 ``X-Scheduler-Token``，
+    驱动 ``annotation_processing → annotation_pending`` 或 ``→ failed``
 """
 
 from fastapi import APIRouter, Depends
 from rdh_contract.schemas import ApiResponse, Episode
 from rdh_contract.schemas.agent import UploadCallback
-from rdh_contract.schemas.scheduler import AlgoResultCallback
+from rdh_contract.schemas.scheduler import AlgoResultCallback, AnnotationProcessingCallback
 
 from app.api.dependencies import (
     CallbackServiceDep,
@@ -59,6 +62,26 @@ async def algo_result(
     ``pipeline_complete=false`` 时只落数据；为 true 时才推进 Episode 状态。
     """
     outcome = await service.handle_algo_result(callback)
+    await session.commit()
+    return ApiResponse(success=True, data=outcome.episode)
+
+
+@router.post(
+    "/annotation-processing",
+    summary="送标处理结果回调（Scheduler 调用）",
+    dependencies=[Depends(require_scheduler_token)],
+)
+async def annotation_processing(
+    callback: AnnotationProcessingCallback,
+    service: CallbackServiceDep,
+    session: SessionDep,
+) -> ApiResponse[Episode]:
+    """Scheduler 汇报送标处理结果。
+
+    驱动 ``annotation_processing → annotation_pending``（成功）或 ``→ failed``（失败）。
+    与 ``/callbacks/algo-result`` 的区别是源状态不同，见 callbacks 服务的 docstring。
+    """
+    outcome = await service.handle_annotation_processing(callback)
     await session.commit()
     return ApiResponse(success=True, data=outcome.episode)
 

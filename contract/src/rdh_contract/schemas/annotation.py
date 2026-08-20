@@ -19,7 +19,11 @@ from .episode import Segment
 class VerifyResult(ContractModel):
     """核验结果。
 
-    ``APPROVE`` → Episode 进 ``annotation_pending``；``REJECT`` → 进 ``rejected``（终态）。
+    ``APPROVE`` → Episode 进 ``annotation_processing``（送标处理，异步）；
+    ``REJECT`` → 进 ``rejected``（终态）。
+
+    通过后不直连 ``annotation_pending`` —— 中间有一个送标环节，见
+    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
     """
 
     episode_id: str = Field(description="被核验的 Episode ID")
