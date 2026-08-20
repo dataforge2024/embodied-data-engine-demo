@@ -633,6 +633,14 @@ export interface Dataset {
   updated_at: string;
 }
 
+/** Scheduler 触发训练集构建。 */
+export interface DatasetBuildCallback {
+  /** 训练集 ID */
+  dataset_id: string;
+  /** 触发时间（UTC） */
+  requested_at: string;
+}
+
 /** 流转触发者。 */
 export interface TransitionActor {
   /** 人工推进还是系统推进 */

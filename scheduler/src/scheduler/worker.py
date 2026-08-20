@@ -139,15 +139,28 @@ class Worker:
                 await asyncio.sleep(self._settings.poll_interval_seconds)
 
 
-def build_pipeline(settings: Settings | None = None) -> EpisodePipeline:
-    """构造流水线。Celery task 与进程内 worker 共用。"""
+def build_platform_client(settings: Settings | None = None) -> PlatformClient:
+    """构造 Platform 客户端。
+
+    单独暴露是给不需要整条流水线的 task 用 —— 训练集构建只要回调，
+    起一个算子执行器纯属浪费。
+    """
     settings = settings or get_settings()
-    platform = PlatformClient(
+    return PlatformClient(
         base_url=settings.platform_base_url,
         scheduler_token=settings.scheduler_token,
         timeout_seconds=settings.callback_timeout_seconds,
     )
-    return EpisodePipeline(settings=settings, runner=build_runner(settings), platform=platform)
+
+
+def build_pipeline(settings: Settings | None = None) -> EpisodePipeline:
+    """构造流水线。Celery task 与进程内 worker 共用。"""
+    settings = settings or get_settings()
+    return EpisodePipeline(
+        settings=settings,
+        runner=build_runner(settings),
+        platform=build_platform_client(settings),
+    )
 
 
 def build_workers(settings: Settings | None = None) -> tuple[Worker, ...]:
@@ -171,4 +184,12 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 
-__all__ = ["ALGO_ROOT", "Worker", "build_pipeline", "build_runner", "build_workers", "main"]
+__all__ = [
+    "ALGO_ROOT",
+    "Worker",
+    "build_pipeline",
+    "build_platform_client",
+    "build_runner",
+    "build_workers",
+    "main",
+]

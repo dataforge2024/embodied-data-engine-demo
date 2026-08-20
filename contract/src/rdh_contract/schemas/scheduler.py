@@ -119,9 +119,22 @@ class AnnotationProcessingCallback(ContractModel):
         return self
 
 
+class DatasetBuildCallback(ContractModel):
+    """Scheduler 触发训练集构建。
+
+    只带 ``dataset_id``：清单要写的是人工标注后的最终分段，那份数据在 Platform 的库里，
+    Scheduler 按依赖铁律不能直连 DB，所以它传不了内容，只能说「建这一个」。
+    Episode 清单与格式在受理时已落库，Platform 自己查得到。
+    """
+
+    dataset_id: str = Field(description="训练集 ID")
+    requested_at: datetime = Field(description="触发时间（UTC）")
+
+
 __all__ = [
     "AlgoJobResult",
     "AlgoJobSpec",
     "AlgoResultCallback",
     "AnnotationProcessingCallback",
+    "DatasetBuildCallback",
 ]

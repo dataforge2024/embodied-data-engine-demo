@@ -687,6 +687,50 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /callbacks/dataset-build:
+    post:
+      tags: [callbacks]
+      summary: 触发训练集构建（Scheduler 调用）
+      description: |
+        Scheduler 消费 `dataset.build_requested` 后调本端点做实际构建，驱动 dataset
+        `pending → running → succeeded`（或 `→ failed`）。
+
+        **构建在 Platform 而不是 Scheduler 做**：清单要写人工标注后的最终分段，那份数据
+        只在 Platform 的库里，而 Scheduler 按依赖铁律不能直连 DB。Scheduler 负责「什么
+        时候建」（消费事件、重试），Platform 负责「建出什么」。
+
+        产物是 `manifest.json` 清单，**不是可直接训练的打包数据** —— lerobot / rlds
+        的真实格式转换单开 change。
+
+        422 表示确定性失败（清单里有 Episode 不存在或未发布），dataset 已落 `failed`，
+        调用方不应重试。
+
+        鉴权用 Scheduler 专用凭据（`schedulerAuth`）。
+      security:
+        - schedulerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetBuildCallback'
+      responses:
+        '200':
+          description: 构建完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Dataset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /health:
     get:
       tags: [health]
@@ -1384,6 +1428,19 @@ components:
           type: [string, 'null']
           description: succeeded 为 false 时必填
         reported_at:
+          type: string
+          format: date-time
+
+    DatasetBuildCallback:
+      type: object
+      description: |
+        触发训练集构建的请求体。只带 dataset_id —— 清单要写的是人工标注后的最终分段，
+        那份数据在 Platform 的库里，Scheduler 不能直连 DB 所以传不了内容。
+      required: [dataset_id, requested_at]
+      properties:
+        dataset_id:
+          type: string
+        requested_at:
           type: string
           format: date-time
 

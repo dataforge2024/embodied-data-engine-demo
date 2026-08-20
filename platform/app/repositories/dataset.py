@@ -66,5 +66,46 @@ class DatasetRepository:
         row = await self._session.get(DatasetRow, dataset_id)
         return row_to_dataset(row) if row else None
 
+    async def mark_running(self, dataset_id: str) -> Dataset:
+        """worker 接手 → ``running``。
+
+        没有这一跳的话「排着队」和「正在建」在界面上分不开，卡住时也不知道
+        是 worker 没起来还是构建本身慢。
+        """
+        row = await self._require_row(dataset_id)
+        row.status = JobStatus.RUNNING.value
+        row.updated_at = datetime.now(UTC)
+        await self._session.flush()
+        return row_to_dataset(row)
+
+    async def mark_succeeded(self, dataset_id: str, *, manifest_key: str) -> Dataset:
+        """构建完成 → ``succeeded``，记下产物位置。"""
+        row = await self._require_row(dataset_id)
+        row.status = JobStatus.SUCCEEDED.value
+        row.manifest_key = manifest_key
+        row.failure_reason = None
+        row.updated_at = datetime.now(UTC)
+        await self._session.flush()
+        return row_to_dataset(row)
+
+    async def mark_failed(self, dataset_id: str, *, reason: str) -> Dataset:
+        """构建失败 → ``failed`` 并记原因。
+
+        失败也要落库：不落的话调用方查到的一直是 running，等一个永远不会来的结果。
+        """
+        row = await self._require_row(dataset_id)
+        row.status = JobStatus.FAILED.value
+        row.failure_reason = reason
+        row.updated_at = datetime.now(UTC)
+        await self._session.flush()
+        return row_to_dataset(row)
+
+    async def _require_row(self, dataset_id: str) -> DatasetRow:
+        """取行，不存在抛 KeyError（上层转 404）。"""
+        row = await self._session.get(DatasetRow, dataset_id)
+        if row is None:
+            raise KeyError(f"Dataset 不存在：{dataset_id}")
+        return row
+
 
 __all__ = ["DatasetRepository", "row_to_dataset"]

@@ -14,6 +14,7 @@ from .scheduler import (
     AlgoJobSpec,
     AlgoResultCallback,
     AnnotationProcessingCallback,
+    DatasetBuildCallback,
 )
 from .task import CollectTask, TaskAssignment, TaskCreate, TaskRequirement
 from .transition import TransitionActor, TransitionRecord
@@ -33,6 +34,7 @@ __all__ = [
     "CollectTask",
     "ContractModel",
     "Dataset",
+    "DatasetBuildCallback",
     "Episode",
     "EpisodeCreate",
     "ErrorDetail",

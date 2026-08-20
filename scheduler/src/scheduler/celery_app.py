@@ -136,18 +136,43 @@ def convert_annotation(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
     retry_backoff=True,
 )
 def build_dataset(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
-    """tool-worker：构建训练集。
+    """tool-worker：触发训练集构建。
 
-    **未实现** —— 导出格式（lerobot / rlds）单开 change。这里记录请求并明确标示未实现，
-    而不是静默成功让上游以为已经建好。
+    **构建本身在 Platform 做**：清单要写人工标注后的最终分段，那份数据只在 Platform
+    的库里，Scheduler 按依赖铁律不能直连 DB。本 task 负责的是「什么时候建」——
+    消费事件、失败重试；「建出什么」由 Platform 的 DatasetBuilder 决定。
+
+    产物是 manifest 清单而非可训练的打包数据（design.md 第 5 节），
+    lerobot / rlds 的真实格式转换单开 change。
+
+    422 不重试：那是「清单里有 Episode 不存在或未发布」这类问题，重试多少次都一样，
+    且 Platform 已把 dataset 落 failed。
     """
-    logger.warning(
-        "训练集构建尚未实现，请求已记录 dataset=%s format=%s episodes=%d",
-        payload.get("dataset_id"),
+    from scheduler.callbacks.platform import PlatformCallbackError
+    from scheduler.worker import build_platform_client
+
+    dataset_id = str(payload.get("dataset_id") or "")
+    if not dataset_id:
+        logger.error("构建请求缺少 dataset_id，丢弃 payload=%s", payload)
+        return {"dataset_id": None, "built": False, "reason": "missing_dataset_id"}
+
+    try:
+        result = _run(build_platform_client().trigger_dataset_build(dataset_id=dataset_id))
+    except PlatformCallbackError as exc:
+        # 422 是确定性失败，重试没意义；其余（超时、5xx）值得重试
+        if "422" in str(exc):
+            logger.error("训练集构建被拒，不重试 dataset=%s：%s", dataset_id, exc)
+            return {"dataset_id": dataset_id, "built": False, "reason": str(exc)}
+        logger.exception("训练集构建触发失败 dataset=%s", dataset_id)
+        raise self.retry(exc=exc) from exc
+
+    logger.info(
+        "训练集构建完成 dataset=%s format=%s episodes=%d",
+        dataset_id,
         payload.get("output_format"),
         len(payload.get("episode_ids") or ()),
     )
-    return {"dataset_id": payload.get("dataset_id"), "built": False, "reason": "not_implemented"}
+    return {"dataset_id": dataset_id, "built": True, "result": result}
 
 
 # routing_key → Celery task。消费层按此分派，不硬编码 task 名。

@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 import sys
 import uuid
@@ -112,11 +113,13 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
 
     from app.repositories.agent_node import AgentNodeRepository
     from app.repositories.annotation import AnnotationRepository
+    from app.repositories.dataset import DatasetRepository
     from app.repositories.episode import EpisodeRepository
     from app.repositories.task import TaskRepository
     from app.repositories.transition import TransitionRepository
     from app.repositories.user import UserRepository
     from app.services.callbacks import CallbackService
+    from app.services.dataset_builder import DatasetBuilder
     from app.services.episode_lifecycle import EpisodeLifecycleService
     from app.services.object_store import LocalObjectStore
     from app.services.review import ReviewService
@@ -497,6 +500,40 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     if tool_event is not None:
         ok(f"tool-worker 取到 {tool_event.routing_key}（真实实现在此并入训练集）")
         await queues.ack("tool", tool_event)
+
+    # ============ 阶段 7b：导出训练集 ============
+    banner("阶段 7b · 导出训练集（产出 manifest 清单）")
+
+    async with factory() as session:
+        datasets = DatasetRepository(session)
+        dataset = await datasets.create(
+            dataset_id=str(uuid.uuid4()),
+            episode_ids=(episode_id,),
+            output_format="lerobot",
+            requested_by=operator_user.user_id,
+        )
+        await session.commit()
+    step(f"构建已受理 {dataset.dataset_id[:8]} · 状态 {dataset.status.value}")
+
+    async with factory() as session:
+        builder = DatasetBuilder(
+            datasets=DatasetRepository(session),
+            episodes=EpisodeRepository(session),
+            object_store=object_store,
+        )
+        built = await builder.build(dataset.dataset_id)
+        await session.commit()
+    ok(f"构建完成 · 状态 {built.status.value} · 清单 {built.manifest_key}")
+
+    # 清单是 JSON，直接读出来看几个关键字段 —— 演示时「导出」要有东西可看
+    assert built.manifest_key is not None
+    manifest = json.loads(
+        object_store.path_for(built.manifest_key).read_text(encoding="utf-8")
+    )
+    step(
+        f"清单含 {manifest['episode_count']} 条 Episode · "
+        f"{manifest['segment_count']} 个人工分段"
+    )
 
     # ============ 阶段 8：汇总 ============
     banner("阶段 8 · 全链路汇总")

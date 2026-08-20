@@ -415,6 +415,50 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
     # 正常推进不带原因，免得界面上每条都挂一句废话
     assert all(r.reason is None for r in history)
 
+    # ---- 10. 导出（第五步人工推进）：产出 manifest 清单 ----
+    import json
+
+    from app.repositories.dataset import DatasetRepository
+    from app.services.dataset_builder import DatasetBuilder
+
+    async with factory() as session:
+        dataset = await DatasetRepository(session).create(
+            dataset_id=str(uuid.uuid4()),
+            episode_ids=(episode_id,),
+            output_format="lerobot",
+            requested_by="operator",
+        )
+        await session.commit()
+    assert dataset.status is JobStatus.PENDING, "受理时只落库，构建是异步的"
+
+    async with factory() as session:
+        built = await DatasetBuilder(
+            datasets=DatasetRepository(session),
+            episodes=EpisodeRepository(session),
+            object_store=store,
+        ).build(dataset.dataset_id)
+        await session.commit()
+
+    assert built.status is JobStatus.SUCCEEDED
+    assert built.manifest_key is not None
+    assert store.exists(built.manifest_key), "清单要真的落在对象存储上"
+
+    manifest = json.loads(
+        store.path_for(built.manifest_key).read_text(encoding="utf-8")
+    )
+    assert manifest["episode_count"] == 1
+    assert manifest["output_format"] == "lerobot"
+
+    entry = manifest["episodes"][0]
+    assert entry["episode_id"] == episode_id
+    assert entry["status"] == "published"
+    # 清单里的分段是人工最终版：上面第 7 步把 source 置空了
+    assert entry["segments"], "清单不该没有分段"
+    assert all(s["source"] is None for s in entry["segments"])
+    # 算子产物位置也在清单里，下游据此取原始数据
+    assert entry["object_key"] is not None
+    assert entry["algo_artifacts"], "解析阶段跑过算子，清单该列出产物"
+
 
 @pytest.mark.e2e
 async def test_verification_reject_terminates_episode(runtime: Path) -> None:

@@ -85,16 +85,16 @@
 ## 8. 导出数据集
 
 - [x] 8.1 `POST /datasets/build` 权限由 `LAB` 改 `ADMIN`
-- [ ] 8.2 校验纳入的 Episode 全部为 `published`，否则 422 并指出不合格的
+- [x] 8.2 校验纳入的 Episode 全部为 `published`，否则 422 并指出不合格的
 - [x] 8.3 新增 `GET /datasets/{id}` 返回构建状态与产物位置
-- [ ] 8.4 `build_dataset` Celery task 由 stub 改为落地 `manifest.json`
-- [ ] 8.5 manifest 含 episode 清单、人工最终分段、算子产物 object_key、格式、发起人
-- [ ] 8.6 构建状态可查（进行中 / 完成 / 失败）
+- [x] 8.4 `build_dataset` Celery task 由 stub 改为落地 `manifest.json`
+- [x] 8.5 manifest 含 episode 清单、人工最终分段、算子产物 object_key、格式、发起人
+- [x] 8.6 构建状态可查（进行中 / 完成 / 失败）
 
 ## 9. 端到端验证
 
 - [x] 9.1 复核现有 e2e：凡走 `verification_pending → annotation_pending` 的都会因中间多一跳而失败
-- [ ] 9.2 新增 e2e：五步人工推进走通一遍（质检 → 送标 → 标注 → 审核 → 导出）
+- [x] 9.2 新增 e2e：五步人工推进走通一遍（质检 → 送标 → 标注 → 审核 → 导出）
 - [x] 9.3 新增 e2e：走完一条后查轨迹，验证每一步都留了记录且顺序正确
 - [x] 9.4 `make check` 全绿
 - [x] 9.5 `make demo` 与 `make demo-rabbit` 都跑通

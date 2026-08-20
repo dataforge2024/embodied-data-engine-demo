@@ -27,6 +27,7 @@ from app.repositories.transition import TransitionRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
 from app.services.callbacks import CallbackService
+from app.services.dataset_builder import DatasetBuilder
 from app.services.episode_lifecycle import EpisodeLifecycleService
 from app.services.event_publisher import EventPublisher, FileQueuePublisher
 from app.services.object_store import LocalObjectStore, ObjectStore
@@ -158,6 +159,23 @@ def get_callback_service(
     return CallbackService(lifecycle=lifecycle, episodes=episodes, tasks=tasks, object_store=store)
 
 
+def get_dataset_builder(
+    datasets: DatasetRepoDep,
+    episodes: EpisodeRepoDep,
+    settings: SettingsDep,
+) -> DatasetBuilder:
+    """训练集构建器。
+
+    直接要 :class:`LocalObjectStore` 而非 ``ObjectStore`` Protocol：写清单需要
+    ``path_for``，那不在 Protocol 里（Protocol 只声明了读侧）。接 OSS 时再抽写接口。
+    """
+    return DatasetBuilder(
+        datasets=datasets,
+        episodes=episodes,
+        object_store=LocalObjectStore(settings.object_store_root),
+    )
+
+
 def get_auth_service(users: UserRepoDep, settings: SettingsDep) -> AuthService:
     """认证服务。"""
     return AuthService(
@@ -172,6 +190,7 @@ def get_task_service(tasks: TaskRepoDep, agents: AgentRepoDep) -> TaskService:
 
 ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 CallbackServiceDep = Annotated[CallbackService, Depends(get_callback_service)]
+DatasetBuilderDep = Annotated[DatasetBuilder, Depends(get_dataset_builder)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
 
@@ -238,6 +257,7 @@ __all__ = [
     "AuthServiceDep",
     "CallbackServiceDep",
     "CurrentUserDep",
+    "DatasetBuilderDep",
     "DatasetRepoDep",
     "close_publisher",
     "EpisodeRepoDep",
