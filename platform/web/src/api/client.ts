@@ -8,6 +8,7 @@
 import {
   CONTRACT_VERSION,
   type AgentNode,
+  type AlgoJobRunRecord,
   type CollectTask,
   type Episode,
   type TokenResponse,
@@ -149,6 +150,10 @@ export const fetchEpisodeStats = () =>
 /** 状态流转轨迹，按时间正序。停留时长由相邻两条的时间差推导。 */
 export const fetchTransitions = (episodeId: string) =>
   get<TransitionRecord[]>(`/episodes/${episodeId}/transitions`);
+
+/** 算子运行日志，按时间正序。答「自动环节（采集自动解析）跑了什么」。 */
+export const fetchAlgoJobs = (episodeId: string) =>
+  get<AlgoJobRunRecord[]>(`/episodes/${episodeId}/algo-jobs`);
 export const fetchAgents = () => get<AgentNode[]>("/agents");
 export const fetchOnlineAgents = () => get<string[]>("/agents/online");
 export const fetchUsers = () => get<User[]>("/users");

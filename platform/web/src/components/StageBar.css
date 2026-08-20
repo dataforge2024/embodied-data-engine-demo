@@ -80,6 +80,29 @@
   font-size: 0.6rem;
 }
 
+/* compact 模式：只显示当前阶段名字的单个 chip，不画六格 */
+.stage-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.stage-chip.current {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.stage-chip.derailed {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 45%, transparent);
+  color: #fca5a5;
+}
+
 /* 拿不到轨迹的脱轨态：画不出「死在第几格」，只说明流程中断 */
 .stage-derailed-chip {
   display: inline-block;

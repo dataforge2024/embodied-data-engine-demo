@@ -21,6 +21,7 @@ from rdh_contract.state_machine import INITIAL_STATE, InvalidTransitionError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base
+from app.repositories.algo_job_run import AlgoJobRunRepository
 from app.repositories.annotation import AnnotationRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
@@ -80,6 +81,7 @@ class _Harness:
             episodes=self.episodes,
             tasks=TaskRepository(session),
             object_store=None,  # type: ignore[arg-type]  # 本测试不碰对象存储
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         self.episode_id = str(uuid.uuid4())
 

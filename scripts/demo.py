@@ -112,6 +112,7 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
     await init_schema()
 
     from app.repositories.agent_node import AgentNodeRepository
+    from app.repositories.algo_job_run import AlgoJobRunRepository
     from app.repositories.annotation import AnnotationRepository
     from app.repositories.dataset import DatasetRepository
     from app.repositories.episode import EpisodeRepository
@@ -290,6 +291,7 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
             episodes=episodes_repo,
             tasks=TaskRepository(session),
             object_store=object_store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_upload_complete(
             UploadCallback(
@@ -388,6 +390,7 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
             episodes=episodes_repo,
             tasks=TaskRepository(session),
             object_store=object_store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_algo_result(
             AlgoResultCallback(
@@ -439,6 +442,7 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
             episodes=EpisodeRepository(session),
             tasks=TaskRepository(session),
             object_store=object_store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_annotation_processing(
             AnnotationProcessingCallback(

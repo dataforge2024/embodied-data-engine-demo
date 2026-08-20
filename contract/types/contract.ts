@@ -611,6 +611,26 @@ export interface AnnotationProcessingCallback {
   reported_at: string;
 }
 
+/** 一次算子运行的落库记录（Platform 读侧）。 */
+export interface AlgoJobRunRecord {
+  /** 所属 Episode */
+  episode_id: string;
+  /** 作业 ID */
+  job_id: string;
+  /** 算子类型 */
+  operator: AlgoOperator;
+  /** 作业最终状态 */
+  status: JobStatus;
+  /** 模型版本（镜像 tag） */
+  model_version: string;
+  /** 失败原因；成功为 None */
+  error_message?: string | null;
+  /** 开始时间（UTC） */
+  started_at: string;
+  /** 结束时间（UTC） */
+  finished_at: string;
+}
+
 /** 训练集构建视图。 */
 export interface Dataset {
   /** 训练集 ID（UUID） */

@@ -19,6 +19,7 @@ from app.core.config import Settings, get_settings
 from app.core.security import AuthError, decode_access_token, verify_service_token
 from app.db.session import get_session
 from app.repositories.agent_node import AgentNodeRepository
+from app.repositories.algo_job_run import AlgoJobRunRepository
 from app.repositories.annotation import AnnotationRepository
 from app.repositories.dataset import DatasetRepository
 from app.repositories.episode import EpisodeRepository
@@ -113,6 +114,11 @@ def get_transition_repo(session: SessionDep) -> TransitionRepository:
     return TransitionRepository(session)
 
 
+def get_algo_job_run_repo(session: SessionDep) -> AlgoJobRunRepository:
+    """算子运行日志仓储。"""
+    return AlgoJobRunRepository(session)
+
+
 EpisodeRepoDep = Annotated[EpisodeRepository, Depends(get_episode_repo)]
 TaskRepoDep = Annotated[TaskRepository, Depends(get_task_repo)]
 AnnotationRepoDep = Annotated[AnnotationRepository, Depends(get_annotation_repo)]
@@ -120,6 +126,7 @@ DatasetRepoDep = Annotated[DatasetRepository, Depends(get_dataset_repo)]
 UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
 AgentRepoDep = Annotated[AgentNodeRepository, Depends(get_agent_repo)]
 TransitionRepoDep = Annotated[TransitionRepository, Depends(get_transition_repo)]
+AlgoJobRunRepoDep = Annotated[AlgoJobRunRepository, Depends(get_algo_job_run_repo)]
 
 
 # ---- 服务 ----
@@ -154,9 +161,16 @@ def get_callback_service(
     episodes: EpisodeRepoDep,
     tasks: TaskRepoDep,
     store: ObjectStoreDep,
+    algo_job_runs: AlgoJobRunRepoDep,
 ) -> CallbackService:
     """回调服务。"""
-    return CallbackService(lifecycle=lifecycle, episodes=episodes, tasks=tasks, object_store=store)
+    return CallbackService(
+        lifecycle=lifecycle,
+        episodes=episodes,
+        tasks=tasks,
+        object_store=store,
+        algo_job_runs=algo_job_runs,
+    )
 
 
 def get_dataset_builder(
@@ -253,6 +267,7 @@ async def require_scheduler_token(
 
 __all__ = [
     "AgentRepoDep",
+    "AlgoJobRunRepoDep",
     "AnnotationRepoDep",
     "AuthServiceDep",
     "CallbackServiceDep",

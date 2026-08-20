@@ -11,6 +11,7 @@ from .dataset import Dataset
 from .episode import Episode, EpisodeCreate, KeyFrame, QualityReport, Segment, SensorStream
 from .scheduler import (
     AlgoJobResult,
+    AlgoJobRunRecord,
     AlgoJobSpec,
     AlgoResultCallback,
     AnnotationProcessingCallback,
@@ -25,6 +26,7 @@ __all__ = [
     "AgentNode",
     "AgentTaskPush",
     "AlgoJobResult",
+    "AlgoJobRunRecord",
     "AlgoJobSpec",
     "AlgoResultCallback",
     "Annotation",

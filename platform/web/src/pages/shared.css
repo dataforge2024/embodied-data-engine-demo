@@ -341,6 +341,22 @@
   background: var(--surface-1);
 }
 
+/* 展开行：轨迹与算子日志并排，窄屏时各自占满一行 */
+.expanded-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.expanded-section-title {
+  margin: 0 0 var(--spacing-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .task-name {
   font-weight: 500;
 }

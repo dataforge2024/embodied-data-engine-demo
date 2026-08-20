@@ -37,7 +37,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   inspect_manual: "采集人工质检",
   annotate_auto: "标注自动送标",
   annotate_manual: "标注人工作业",
-  done: "完成",
+  done: "成功",
 };
 
 /** 鼠标悬停时说明这一格在干什么，避免「质检」被误解成自动算子。 */

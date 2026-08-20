@@ -6,14 +6,15 @@
  * 10 条流转就是 200 条记录，绝大多数没人会看。
  */
 
-import type { Episode, EpisodeStatus, User } from "@contract";
+import type { AlgoJobRunRecord, Episode, EpisodeStatus, User } from "@contract";
 import { isTerminal } from "@contract";
 import { Fragment, useCallback, useState } from "react";
-import { fetchTransitions } from "../api/client";
+import { fetchAlgoJobs, fetchTransitions } from "../api/client";
 import type { TransitionRecord } from "@contract";
 import type { UploadProgress } from "../hooks/useConsoleStream";
 import { formatFull, formatShort } from "../utils/datetime";
 import { TOOL_STAGE_LABELS, toolLink, toolStageOf } from "../utils/toolLink";
+import { AlgoJobLog } from "./AlgoJobLog";
 import { StageBar } from "./StageBar";
 import { TransitionTimeline } from "./TransitionTimeline";
 
@@ -26,7 +27,7 @@ export const STATUS_LABELS: Record<EpisodeStatus, string> = {
   annotation_processing: "送标处理中",
   annotation_pending: "待标注",
   annotation_review: "标注审核",
-  published: "已发布",
+  published: "成功",
   rejected: "已打回",
   failed: "失败",
 };
@@ -59,14 +60,15 @@ interface EpisodeTableProps {
 }
 
 /**
- * 展开中的那一条轨迹。
+ * 展开中的那一条轨迹 + 算子日志。
  *
- * 同时只展开一条：轨迹是详情，多条同时展开会把表格撑得没法看，
- * 也省掉按 id 缓存多份记录的状态。
+ * 同时只展开一条：详情多条同时展开会把表格撑得没法看，也省掉按 id 缓存多份
+ * 记录的状态。两份数据并发拉取 —— 互不依赖，没必要串行等。
  */
 function useTransitionHistory() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [records, setRecords] = useState<readonly TransitionRecord[]>([]);
+  const [algoJobs, setAlgoJobs] = useState<readonly AlgoJobRunRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
   const toggle = useCallback(
@@ -74,26 +76,34 @@ function useTransitionHistory() {
       if (expandedId === episodeId) {
         setExpandedId(null);
         setRecords([]);
+        setAlgoJobs([]);
         return;
       }
       setExpandedId(episodeId);
       setRecords([]);
+      setAlgoJobs([]);
       setLoading(true);
-      fetchTransitions(episodeId)
-        .then((history) => {
+      Promise.all([fetchTransitions(episodeId), fetchAlgoJobs(episodeId)])
+        .then(([history, jobs]) => {
           // 拉取期间用户可能又点了别的行，回来的结果就不该覆盖
           setExpandedId((current) => {
-            if (current === episodeId) setRecords(history);
+            if (current === episodeId) {
+              setRecords(history);
+              setAlgoJobs(jobs);
+            }
             return current;
           });
         })
-        .catch(() => setRecords([]))
+        .catch(() => {
+          setRecords([]);
+          setAlgoJobs([]);
+        })
         .finally(() => setLoading(false));
     },
     [expandedId],
   );
 
-  return { expandedId, toggle, records, loading };
+  return { expandedId, toggle, records, algoJobs, loading };
 }
 
 /**
@@ -134,7 +144,8 @@ export function EpisodeTable({
 }: EpisodeTableProps) {
   // 展开列 + 阶段列 + 人工环节入口列
   const columnCount = showTaskColumn ? 14 : 13;
-  const { expandedId, toggle, records, loading } = useTransitionHistory();
+  const { expandedId, toggle, records, algoJobs, loading } =
+    useTransitionHistory();
 
   return (
     <div className="table-container">
@@ -250,7 +261,23 @@ export function EpisodeTable({
                 {expanded && (
                   <tr className="timeline-row-wrapper">
                     <td colSpan={columnCount}>
-                      <TransitionTimeline records={records} loading={loading} />
+                      <div className="expanded-detail">
+                        <section className="expanded-section">
+                          <h4 className="expanded-section-title">
+                            状态流转轨迹
+                          </h4>
+                          <TransitionTimeline
+                            records={records}
+                            loading={loading}
+                          />
+                        </section>
+                        <section className="expanded-section">
+                          <h4 className="expanded-section-title">
+                            算子运行日志
+                          </h4>
+                          <AlgoJobLog records={algoJobs} loading={loading} />
+                        </section>
+                      </div>
                     </td>
                   </tr>
                 )}

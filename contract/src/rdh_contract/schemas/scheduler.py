@@ -69,6 +69,30 @@ class AlgoJobResult(ContractModel):
         return (self.finished_at - self.started_at).total_seconds()
 
 
+class AlgoJobRunRecord(ContractModel):
+    """一次算子运行的落库记录（Platform 读侧）。
+
+    与 :class:`AlgoJobResult`（回调线上传输）字段基本相同，区别是这是持久化后
+    查出来的记录，专供 ``GET /episodes/{id}/algo-jobs`` 返回 —— 界面据此展示
+    「这一阶段自动跑了什么、跑了多久、成不成功」，与 :class:`TransitionRecord`
+    （状态流转轨迹）互补：一个答「卡在哪个状态」，一个答「自动环节干了什么」。
+    """
+
+    episode_id: str = Field(description="所属 Episode")
+    job_id: str = Field(description="作业 ID")
+    operator: AlgoOperator = Field(description="算子类型")
+    status: JobStatus = Field(description="作业最终状态")
+    model_version: str = Field(description="模型版本（镜像 tag）")
+    error_message: str | None = Field(default=None, description="失败原因；成功为 None")
+    started_at: datetime = Field(description="开始时间（UTC）")
+    finished_at: datetime = Field(description="结束时间（UTC）")
+
+    @property
+    def duration_seconds(self) -> float:
+        """执行耗时。"""
+        return (self.finished_at - self.started_at).total_seconds()
+
+
 class AlgoResultCallback(ContractModel):
     """算子结果回调（交互⑧，Scheduler → ``POST /callbacks/algo-result``）。
 
@@ -133,6 +157,7 @@ class DatasetBuildCallback(ContractModel):
 
 __all__ = [
     "AlgoJobResult",
+    "AlgoJobRunRecord",
     "AlgoJobSpec",
     "AlgoResultCallback",
     "AnnotationProcessingCallback",

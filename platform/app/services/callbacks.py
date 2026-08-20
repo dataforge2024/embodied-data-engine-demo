@@ -14,6 +14,7 @@ from rdh_contract.schemas import KeyFrame, QualityReport, Segment
 from rdh_contract.schemas.agent import UploadCallback
 from rdh_contract.schemas.scheduler import AlgoResultCallback, AnnotationProcessingCallback
 
+from app.repositories.algo_job_run import AlgoJobRunRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
 from app.services.episode_lifecycle import EpisodeLifecycleService, TransitionOutcome
@@ -34,11 +35,13 @@ class CallbackService:
         episodes: EpisodeRepository,
         tasks: TaskRepository,
         object_store: ObjectStore,
+        algo_job_runs: AlgoJobRunRepository,
     ) -> None:
         self._lifecycle = lifecycle
         self._episodes = episodes
         self._tasks = tasks
         self._store = object_store
+        self._algo_job_runs = algo_job_runs
 
     async def handle_upload_complete(
         self, callback: UploadCallback, *, verify_checksum: bool = True
@@ -70,14 +73,16 @@ class CallbackService:
     async def handle_algo_result(self, callback: AlgoResultCallback) -> TransitionOutcome:
         """交互⑧：Scheduler 汇报算子结果。
 
-        算子产物先落库，再按 ``pipeline_complete`` 决定是否推进状态 ——
-        单个算子完成只落数据，整条流水线完成才动状态。
+        每个算子的运行记录先落日志表（成功/失败都记，供界面回溯这一阶段自动跑了
+        什么），再把产物合入 Episode，最后按 ``pipeline_complete`` 决定是否推进
+        状态 —— 单个算子完成只落数据，整条流水线完成才动状态。
         """
         segments: tuple[Segment, ...] | None = None
         key_frames: tuple[KeyFrame, ...] | None = None
         quality: QualityReport | None = None
 
         for result in callback.results:
+            await self._algo_job_runs.record(callback.episode_id, result)
             if result.operator is AlgoOperator.PREANNOTATE and result.segments:
                 segments = result.segments
             elif result.operator is AlgoOperator.KEYFRAME and result.key_frames:

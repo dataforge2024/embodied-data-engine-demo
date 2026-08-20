@@ -1,4 +1,8 @@
-/** Tool 应用外壳。三个工作台对应三个人工环节。 */
+/** Tool 应用外壳。三个工作台对应三个人工环节。
+ *
+ * 支持从 Platform 深链进入：`?episode=<id>&stage=<verify|annotate|review>`。
+ * 只在挂载时读一次 —— 深链只决定「打开时落在哪」，之后手动切工作台不受影响。
+ */
 
 import { useEffect, useState } from "react";
 import type { User } from "@contract";
@@ -15,9 +19,21 @@ import {
 
 type Workspace = "verify" | "annotate" | "review";
 
+const WORKSPACES: readonly Workspace[] = ["verify", "annotate", "review"];
+
+function readDeepLink(): { workspace: Workspace | null; episodeId: string } {
+  const params = new URLSearchParams(window.location.search);
+  const stage = params.get("stage");
+  const workspace = WORKSPACES.find((w) => w === stage) ?? null;
+  return { workspace, episodeId: params.get("episode") ?? "" };
+}
+
 export function App() {
-  const [workspace, setWorkspace] = useState<Workspace>("verify");
-  const [episodeId, setEpisodeId] = useState("");
+  const [deepLink] = useState(readDeepLink);
+  const [workspace, setWorkspace] = useState<Workspace>(
+    deepLink.workspace ?? "verify",
+  );
+  const [episodeId, setEpisodeId] = useState(deepLink.episodeId);
   // 初始值从 localStorage 恢复：刷新页面不该被登出
   const [user, setUser] = useState<User | null>(restoreSession);
 

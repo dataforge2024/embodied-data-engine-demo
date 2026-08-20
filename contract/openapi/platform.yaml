@@ -182,6 +182,36 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /episodes/{episode_id}/algo-jobs:
+    get:
+      tags: [episodes]
+      summary: 查询算子运行日志
+      description: |
+        按时间正序返回该 Episode 自动环节（processing）跑过的每个算子结果 ——
+        跑了哪个算子、成不成功、耗时多久、失败原因是什么。
+
+        与 /transitions 互补：那个端点答「卡在哪个状态」，这个答「自动环节干了什么」。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlgoJobRunRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /tasks:
     get:
       tags: [tasks]
@@ -1511,6 +1541,35 @@ components:
           type: [string, 'null']
           description: 打回/失败原因；正常推进为 null
         occurred_at:
+          type: string
+          format: date-time
+
+    AlgoJobRunRecord:
+      type: object
+      description: |
+        一次算子运行的落库记录。与 TransitionRecord 互补：一个答「卡在哪个状态」，
+        一个答「自动环节干了什么」。
+      required:
+        [episode_id, job_id, operator, status, model_version, started_at, finished_at]
+      properties:
+        episode_id:
+          type: string
+        job_id:
+          type: string
+        operator:
+          $ref: '#/components/schemas/AlgoOperator'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        model_version:
+          type: string
+          description: 模型版本（镜像 tag）
+        error_message:
+          type: [string, 'null']
+          description: 失败原因；成功为 null
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
           type: string
           format: date-time
 

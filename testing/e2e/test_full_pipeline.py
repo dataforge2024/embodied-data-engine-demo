@@ -61,6 +61,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
     await init_schema()
 
     from app.core.security import hash_password
+    from app.repositories.algo_job_run import AlgoJobRunRepository
     from app.repositories.annotation import AnnotationRepository
     from app.repositories.episode import EpisodeRepository
     from app.repositories.task import TaskRepository
@@ -160,6 +161,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_upload_complete(
             UploadCallback(
@@ -255,6 +257,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_algo_result(
             AlgoResultCallback(
@@ -302,6 +305,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_annotation_processing(
             AnnotationProcessingCallback(
@@ -569,6 +573,7 @@ async def test_upload_callback_replay_is_idempotent(runtime: Path) -> None:
     settings.ensure_dirs()
     await init_schema()
 
+    from app.repositories.algo_job_run import AlgoJobRunRepository
     from app.repositories.episode import EpisodeRepository
     from app.repositories.task import TaskRepository
     from app.services.callbacks import CallbackService
@@ -623,6 +628,7 @@ async def test_upload_callback_replay_is_idempotent(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=LocalObjectStore(settings.object_store_root),
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         # 对象不存在时跳过 checksum 校验（这里只测幂等）
         first = await service.handle_upload_complete(callback, verify_checksum=False)
