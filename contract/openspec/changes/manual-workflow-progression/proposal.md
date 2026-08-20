@@ -66,6 +66,17 @@ platform/routes/review.py 三个队列端点都要角色
 五步全部由人在界面上点，不做自动推进。每一步的前置状态由 `assert_actionable` 守卫，
 点错顺序返回 409 而不是静默改状态。
 
+**状态流转记录（可视化整条链路）**
+
+- 新增流转历史表：每次状态实际变化追加一条不可变记录（源状态、目标状态、时间、触发者、原因）
+- 记录点收口在 `repositories/episode.py::apply_transition` —— 它是状态写入的唯一入口
+  （注释已声明「唯一合法调用方是 `episode_lifecycle`」），跟着它走不会漏
+- 新增 `GET /episodes/{id}/transitions` 返回完整轨迹，按时间正序
+- 控制台可展开某条 Episode 的轨迹，看清每一步谁在什么时候推的、停留多久
+- **顺带修掉一个已知短板**：`utils/stage.ts:78` 的注释承认「Episode 只存当前状态，拿不到
+  历史，所以脱轨态把所有阶段一律标 blocked」。有了流转记录后可以标出中断的确切位置 ——
+  失败的 Episode 不再是一整条灰的进度条
+
 ## Capabilities
 
 ### New Capabilities
@@ -73,6 +84,7 @@ platform/routes/review.py 三个队列端点都要角色
 - `tool-operator-console`: Tool 的登录与身份、三个工作台的队列加载、标注表单、
   操作后的队列刷新
 - `platform-dataset-export`: 训练集构建状态查询、manifest 产出、导出权限
+- `platform-transition-history`: 状态流转记录的追加、触发者归属、轨迹查询与控制台展示
 
 ### Modified Capabilities
 
@@ -90,7 +102,7 @@ platform/routes/review.py 三个队列端点都要角色
 |---|---|
 | `enums.py` | `EpisodeStatus` 新增 `ANNOTATION_PROCESSING` |
 | `state_machine.py` | 新增 3 条边，`verification_pending` 的出边改向 |
-| `schemas/` | 新增 `Dataset` 模型 |
+| `schemas/` | 新增 `Dataset` 模型、流转记录模型 |
 | `openapi/platform.yaml` | 新增 `GET /datasets/{id}` |
 | 生成物 | `types/contract.ts` 与 `events/*.json` 需重跑 `make contract-gen` |
 
@@ -105,6 +117,10 @@ platform/routes/review.py 三个队列端点都要角色
 | `api/routes/review.py` | 三个端点角色要求收敛为 `ANNOTATOR` |
 | `api/routes/datasets.py` | 新增 `GET /{id}`；`POST /build` 权限改 `ADMIN` |
 | `services/seed.py` | 新增 `annotator` 账号 |
+| `repositories/episode.py` | `apply_transition` 追加流转记录 |
+| 新增 `models/transition.py` | 流转历史表 |
+| `api/routes/episodes.py` | 新增 `GET /{id}/transitions` |
+| `web/src/components/StageBar.tsx` | 六阶段；脱轨态借历史标出中断位置 |
 | `web/src/components/EpisodeTable.tsx` | 新状态的标签与颜色 |
 | `web/src/utils/stage.ts` | `STATUS_TO_STAGE` 补新状态 |
 
