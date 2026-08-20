@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 from rdh_contract.enums import EpisodeStatus, ReviewDecision, Role
+from rdh_contract.schemas import TransitionActor
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -60,6 +61,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
     await init_schema()
 
     from app.core.security import hash_password
+    from app.repositories.algo_job_run import AlgoJobRunRepository
     from app.repositories.annotation import AnnotationRepository
     from app.repositories.episode import EpisodeRepository
     from app.repositories.task import TaskRepository
@@ -147,7 +149,11 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
     async with factory() as session:
         episodes = EpisodeRepository(session)
         lifecycle = EpisodeLifecycleService(episodes=episodes, publisher=publisher)
-        await lifecycle.transition(episode_id, target=EpisodeStatus.UPLOADING)
+        await lifecycle.transition(
+            episode_id,
+            target=EpisodeStatus.UPLOADING,
+            actor=TransitionActor(actor_type="system", system_component="agent_report"),
+        )
         await session.commit()
 
         callbacks = CallbackService(
@@ -155,6 +161,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_upload_complete(
             UploadCallback(
@@ -250,6 +257,7 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=store,
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         outcome = await callbacks.handle_algo_result(
             AlgoResultCallback(
@@ -280,6 +288,30 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
                 checked_topics=stats.topics,
                 verified_by="operator",
                 verified_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    assert outcome.episode.status is EpisodeStatus.ANNOTATION_PROCESSING
+
+    # ---- 6b. 送标处理回调（Scheduler，本阶段不跑算子）----
+    # 质检通过后不再直连 annotation_pending，中间多了这个异步环节。
+    from rdh_contract.schemas.scheduler import AnnotationProcessingCallback
+
+    async with factory() as session:
+        episodes = EpisodeRepository(session)
+        lifecycle = EpisodeLifecycleService(episodes=episodes, publisher=publisher)
+        callbacks = CallbackService(
+            lifecycle=lifecycle,
+            episodes=episodes,
+            tasks=TaskRepository(session),
+            object_store=store,
+            algo_job_runs=AlgoJobRunRepository(session),
+        )
+        outcome = await callbacks.handle_annotation_processing(
+            AnnotationProcessingCallback(
+                episode_id=episode_id,
+                succeeded=True,
+                reported_at=datetime.now(UTC),
             )
         )
         await session.commit()
@@ -343,6 +375,94 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
     assert refreshed is not None
     assert refreshed.published_count == 1
 
+    # ---- 9. 流转轨迹：每一步都留了记录，顺序与归属都对 ----
+    from app.repositories.transition import TransitionRepository
+
+    async with factory() as session:
+        history = await TransitionRepository(session).get_history(episode_id)
+
+    assert tuple((r.from_status, r.to_status) for r in history) == (
+        (EpisodeStatus.RECORDING, EpisodeStatus.UPLOADING),
+        (EpisodeStatus.UPLOADING, EpisodeStatus.UPLOADED),
+        (EpisodeStatus.UPLOADED, EpisodeStatus.PROCESSING),
+        (EpisodeStatus.PROCESSING, EpisodeStatus.VERIFICATION_PENDING),
+        (EpisodeStatus.VERIFICATION_PENDING, EpisodeStatus.ANNOTATION_PROCESSING),
+        (EpisodeStatus.ANNOTATION_PROCESSING, EpisodeStatus.ANNOTATION_PENDING),
+        (EpisodeStatus.ANNOTATION_PENDING, EpisodeStatus.ANNOTATION_REVIEW),
+        (EpisodeStatus.ANNOTATION_REVIEW, EpisodeStatus.PUBLISHED),
+    ), "轨迹应覆盖全链路且按时间正序"
+
+    # 时长靠相邻两条的时间差推导，所以顺序必须真的是升序
+    times = [r.occurred_at for r in history]
+    assert times == sorted(times)
+
+    # 三个人工环节记 user_id，其余记系统环节名 —— 不把系统伪装成某个用户
+    by_target = {r.to_status: r.actor for r in history}
+    for manual in (
+        EpisodeStatus.ANNOTATION_PROCESSING,  # 质检通过触发
+        EpisodeStatus.ANNOTATION_REVIEW,  # 标注提交触发
+        EpisodeStatus.PUBLISHED,  # 审核通过触发
+    ):
+        assert by_target[manual].actor_type == "user"
+        assert by_target[manual].user_id == "operator"
+        assert by_target[manual].system_component is None
+
+    for automatic in (
+        EpisodeStatus.PROCESSING,
+        EpisodeStatus.VERIFICATION_PENDING,
+        EpisodeStatus.ANNOTATION_PENDING,
+    ):
+        assert by_target[automatic].actor_type == "system"
+        assert by_target[automatic].user_id is None
+        assert by_target[automatic].system_component is not None
+
+    # 正常推进不带原因，免得界面上每条都挂一句废话
+    assert all(r.reason is None for r in history)
+
+    # ---- 10. 导出（第五步人工推进）：产出 manifest 清单 ----
+    import json
+
+    from app.repositories.dataset import DatasetRepository
+    from app.services.dataset_builder import DatasetBuilder
+
+    async with factory() as session:
+        dataset = await DatasetRepository(session).create(
+            dataset_id=str(uuid.uuid4()),
+            episode_ids=(episode_id,),
+            output_format="lerobot",
+            requested_by="operator",
+        )
+        await session.commit()
+    assert dataset.status is JobStatus.PENDING, "受理时只落库，构建是异步的"
+
+    async with factory() as session:
+        built = await DatasetBuilder(
+            datasets=DatasetRepository(session),
+            episodes=EpisodeRepository(session),
+            object_store=store,
+        ).build(dataset.dataset_id)
+        await session.commit()
+
+    assert built.status is JobStatus.SUCCEEDED
+    assert built.manifest_key is not None
+    assert store.exists(built.manifest_key), "清单要真的落在对象存储上"
+
+    manifest = json.loads(
+        store.path_for(built.manifest_key).read_text(encoding="utf-8")
+    )
+    assert manifest["episode_count"] == 1
+    assert manifest["output_format"] == "lerobot"
+
+    entry = manifest["episodes"][0]
+    assert entry["episode_id"] == episode_id
+    assert entry["status"] == "published"
+    # 清单里的分段是人工最终版：上面第 7 步把 source 置空了
+    assert entry["segments"], "清单不该没有分段"
+    assert all(s["source"] is None for s in entry["segments"])
+    # 算子产物位置也在清单里，下游据此取原始数据
+    assert entry["object_key"] is not None
+    assert entry["algo_artifacts"], "解析阶段跑过算子，清单该列出产物"
+
 
 @pytest.mark.e2e
 async def test_verification_reject_terminates_episode(runtime: Path) -> None:
@@ -384,6 +504,20 @@ async def test_verification_reject_terminates_episode(runtime: Path) -> None:
     assert outcome.episode.reject_reason == "画面严重模糊"
     assert publisher.pending_count("notify") == 1
 
+    # 脱轨的 Episode 能定位到死在哪一步 —— 进度条据此标出中断格，
+    # 而不是把所有阶段一律标灰（修 stage.ts:78 的短板所依赖的数据）。
+    from app.repositories.transition import TransitionRepository
+
+    async with factory() as session:
+        history = await TransitionRepository(session).get_history(episode_id)
+
+    assert len(history) == 1
+    assert history[-1].from_status is EpisodeStatus.VERIFICATION_PENDING
+    assert history[-1].to_status is EpisodeStatus.REJECTED
+    assert history[-1].reason == "画面严重模糊"
+    assert history[-1].actor.actor_type == "user"
+    assert history[-1].actor.user_id == "operator"
+
 
 @pytest.mark.e2e
 async def test_illegal_transition_is_rejected(runtime: Path) -> None:
@@ -418,7 +552,11 @@ async def test_illegal_transition_is_rejected(runtime: Path) -> None:
         await session.commit()
         lifecycle = EpisodeLifecycleService(episodes=episodes, publisher=NullPublisher())
         with pytest.raises(InvalidTransitionError):
-            await lifecycle.transition(episode_id, target=EpisodeStatus.PROCESSING)
+            await lifecycle.transition(
+                episode_id,
+                target=EpisodeStatus.PROCESSING,
+                actor=TransitionActor(actor_type="system", system_component="scheduler"),
+            )
 
 
 @pytest.mark.e2e
@@ -435,6 +573,7 @@ async def test_upload_callback_replay_is_idempotent(runtime: Path) -> None:
     settings.ensure_dirs()
     await init_schema()
 
+    from app.repositories.algo_job_run import AlgoJobRunRepository
     from app.repositories.episode import EpisodeRepository
     from app.repositories.task import TaskRepository
     from app.services.callbacks import CallbackService
@@ -489,6 +628,7 @@ async def test_upload_callback_replay_is_idempotent(runtime: Path) -> None:
             episodes=episodes,
             tasks=TaskRepository(session),
             object_store=LocalObjectStore(settings.object_store_root),
+            algo_job_runs=AlgoJobRunRepository(session),
         )
         # 对象不存在时跳过 checksum 校验（这里只测幂等）
         first = await service.handle_upload_complete(callback, verify_checksum=False)

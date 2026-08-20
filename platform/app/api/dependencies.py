@@ -19,12 +19,16 @@ from app.core.config import Settings, get_settings
 from app.core.security import AuthError, decode_access_token, verify_service_token
 from app.db.session import get_session
 from app.repositories.agent_node import AgentNodeRepository
+from app.repositories.algo_job_run import AlgoJobRunRepository
 from app.repositories.annotation import AnnotationRepository
+from app.repositories.dataset import DatasetRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
+from app.repositories.transition import TransitionRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
 from app.services.callbacks import CallbackService
+from app.services.dataset_builder import DatasetBuilder
 from app.services.episode_lifecycle import EpisodeLifecycleService
 from app.services.event_publisher import EventPublisher, FileQueuePublisher
 from app.services.object_store import LocalObjectStore, ObjectStore
@@ -88,6 +92,11 @@ def get_annotation_repo(session: SessionDep) -> AnnotationRepository:
     return AnnotationRepository(session)
 
 
+def get_dataset_repo(session: SessionDep) -> DatasetRepository:
+    """训练集仓储。"""
+    return DatasetRepository(session)
+
+
 def get_user_repo(session: SessionDep) -> UserRepository:
     """用户仓储。"""
     return UserRepository(session)
@@ -100,18 +109,35 @@ def get_agent_repo(session: SessionDep, settings: SettingsDep) -> AgentNodeRepos
     )
 
 
+def get_transition_repo(session: SessionDep) -> TransitionRepository:
+    """状态流转历史仓储。"""
+    return TransitionRepository(session)
+
+
+def get_algo_job_run_repo(session: SessionDep) -> AlgoJobRunRepository:
+    """算子运行日志仓储。"""
+    return AlgoJobRunRepository(session)
+
+
 EpisodeRepoDep = Annotated[EpisodeRepository, Depends(get_episode_repo)]
 TaskRepoDep = Annotated[TaskRepository, Depends(get_task_repo)]
 AnnotationRepoDep = Annotated[AnnotationRepository, Depends(get_annotation_repo)]
+DatasetRepoDep = Annotated[DatasetRepository, Depends(get_dataset_repo)]
 UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
 AgentRepoDep = Annotated[AgentNodeRepository, Depends(get_agent_repo)]
+TransitionRepoDep = Annotated[TransitionRepository, Depends(get_transition_repo)]
+AlgoJobRunRepoDep = Annotated[AlgoJobRunRepository, Depends(get_algo_job_run_repo)]
 
 
 # ---- 服务 ----
 
 
 def get_lifecycle(episodes: EpisodeRepoDep, publisher: PublisherDep) -> EpisodeLifecycleService:
-    """Episode 生命周期服务 —— 状态变更的唯一入口。"""
+    """Episode 生命周期服务 —— 状态变更的唯一入口。
+
+    轨迹仓储不在这里注入：记录点收口在 Episode 仓储的状态写入方法内部
+    （design.md 第 7 节），本服务只负责把触发者传下去。
+    """
     return EpisodeLifecycleService(episodes=episodes, publisher=publisher)
 
 
@@ -135,9 +161,33 @@ def get_callback_service(
     episodes: EpisodeRepoDep,
     tasks: TaskRepoDep,
     store: ObjectStoreDep,
+    algo_job_runs: AlgoJobRunRepoDep,
 ) -> CallbackService:
     """回调服务。"""
-    return CallbackService(lifecycle=lifecycle, episodes=episodes, tasks=tasks, object_store=store)
+    return CallbackService(
+        lifecycle=lifecycle,
+        episodes=episodes,
+        tasks=tasks,
+        object_store=store,
+        algo_job_runs=algo_job_runs,
+    )
+
+
+def get_dataset_builder(
+    datasets: DatasetRepoDep,
+    episodes: EpisodeRepoDep,
+    settings: SettingsDep,
+) -> DatasetBuilder:
+    """训练集构建器。
+
+    直接要 :class:`LocalObjectStore` 而非 ``ObjectStore`` Protocol：写清单需要
+    ``path_for``，那不在 Protocol 里（Protocol 只声明了读侧）。接 OSS 时再抽写接口。
+    """
+    return DatasetBuilder(
+        datasets=datasets,
+        episodes=episodes,
+        object_store=LocalObjectStore(settings.object_store_root),
+    )
 
 
 def get_auth_service(users: UserRepoDep, settings: SettingsDep) -> AuthService:
@@ -154,6 +204,7 @@ def get_task_service(tasks: TaskRepoDep, agents: AgentRepoDep) -> TaskService:
 
 ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 CallbackServiceDep = Annotated[CallbackService, Depends(get_callback_service)]
+DatasetBuilderDep = Annotated[DatasetBuilder, Depends(get_dataset_builder)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
 
@@ -216,10 +267,13 @@ async def require_scheduler_token(
 
 __all__ = [
     "AgentRepoDep",
+    "AlgoJobRunRepoDep",
     "AnnotationRepoDep",
     "AuthServiceDep",
     "CallbackServiceDep",
     "CurrentUserDep",
+    "DatasetBuilderDep",
+    "DatasetRepoDep",
     "close_publisher",
     "EpisodeRepoDep",
     "LifecycleDep",
@@ -230,6 +284,7 @@ __all__ = [
     "SettingsDep",
     "TaskRepoDep",
     "TaskServiceDep",
+    "TransitionRepoDep",
     "UserRepoDep",
     "current_user",
     "require_agent_token",

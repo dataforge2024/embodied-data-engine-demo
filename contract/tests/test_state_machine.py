@@ -115,13 +115,14 @@ class TestDocumentedMainPath:
         EpisodeStatus.UPLOADED,
         EpisodeStatus.PROCESSING,
         EpisodeStatus.VERIFICATION_PENDING,
+        EpisodeStatus.ANNOTATION_PROCESSING,
         EpisodeStatus.ANNOTATION_PENDING,
         EpisodeStatus.ANNOTATION_REVIEW,
         EpisodeStatus.PUBLISHED,
     )
 
     def test_main_path_is_walkable(self) -> None:
-        """架构文档第二节的 8 态主链路每一跳都合法。"""
+        """架构文档第二节的 9 态主链路每一跳都合法。"""
         for source, target in zip(self.MAIN_PATH, self.MAIN_PATH[1:], strict=False):
             assert can_transition(source, target), f"主链路断裂：{source.value} → {target.value}"
 
@@ -151,6 +152,55 @@ class TestDocumentedMainPath:
                 assert not can_transition(terminal, target), (
                     f"{terminal.value} 可复活到 {target.value}"
                 )
+
+
+@pytest.mark.unit
+class TestAnnotationProcessing:
+    """送标处理环节（design.md 第 1 节）。
+
+    这个状态是 BREAKING 改动的核心：老的 ``verification_pending → annotation_pending``
+    直连边被移除，中间插入一个异步环节。
+    """
+
+    def test_verification_approve_goes_to_annotation_processing(self) -> None:
+        """质检通过进送标处理，不再直接进标注队列。"""
+        assert can_transition(
+            EpisodeStatus.VERIFICATION_PENDING, EpisodeStatus.ANNOTATION_PROCESSING
+        )
+
+    def test_old_direct_edge_is_removed(self) -> None:
+        """旧的直连边已非法 —— 任何还依赖它的调用方必须改。"""
+        assert not can_transition(
+            EpisodeStatus.VERIFICATION_PENDING, EpisodeStatus.ANNOTATION_PENDING
+        )
+
+    def test_annotation_processing_outgoing_edges(self) -> None:
+        """送标完成进标注队列，算子失败判 failed，没有第三个出口。"""
+        assert allowed_transitions(EpisodeStatus.ANNOTATION_PROCESSING) == frozenset(
+            {EpisodeStatus.ANNOTATION_PENDING, EpisodeStatus.FAILED}
+        )
+
+    def test_annotation_processing_is_reachable(self) -> None:
+        """新状态从初始态可达，否则是死代码。"""
+        assert EpisodeStatus.ANNOTATION_PROCESSING in reachable_from(INITIAL_STATE)
+
+    def test_annotation_processing_is_not_terminal(self) -> None:
+        """送标处理是中间态。"""
+        assert not is_terminal(EpisodeStatus.ANNOTATION_PROCESSING)
+
+    def test_annotation_pending_only_entered_via_processing_or_review(self) -> None:
+        """进标注队列只有两个来源：送标完成，或审核退回重做。"""
+        sources = [s for s in EpisodeStatus if can_transition(s, EpisodeStatus.ANNOTATION_PENDING)]
+        assert sorted(sources) == sorted(
+            [EpisodeStatus.ANNOTATION_PROCESSING, EpisodeStatus.ANNOTATION_REVIEW]
+        )
+
+    def test_cannot_skip_annotation_processing(self) -> None:
+        """质检通过后绕不过送标处理：不能直接进审核或发布。"""
+        assert not can_transition(
+            EpisodeStatus.VERIFICATION_PENDING, EpisodeStatus.ANNOTATION_REVIEW
+        )
+        assert not can_transition(EpisodeStatus.VERIFICATION_PENDING, EpisodeStatus.PUBLISHED)
 
 
 @pytest.mark.unit

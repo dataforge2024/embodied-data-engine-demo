@@ -16,6 +16,7 @@ export type EpisodeStatus =
   | "uploaded"
   | "processing"
   | "verification_pending"
+  | "annotation_processing"
   | "annotation_pending"
   | "annotation_review"
   | "published"
@@ -28,6 +29,7 @@ export const EpisodeStatusValues: readonly EpisodeStatus[] = [
   "uploaded",
   "processing",
   "verification_pending",
+  "annotation_processing",
   "annotation_pending",
   "annotation_review",
   "published",
@@ -141,6 +143,7 @@ export const EPISODE_TRANSITIONS: Readonly<
   Record<EpisodeStatus, readonly EpisodeStatus[]>
 > = {
   "annotation_pending": ["annotation_review", "rejected"],
+  "annotation_processing": ["annotation_pending", "failed"],
   "annotation_review": ["annotation_pending", "published", "rejected"],
   "failed": [],
   "processing": ["failed", "verification_pending"],
@@ -149,7 +152,7 @@ export const EPISODE_TRANSITIONS: Readonly<
   "rejected": [],
   "uploaded": ["failed", "processing"],
   "uploading": ["failed", "uploaded"],
-  "verification_pending": ["annotation_pending", "rejected"],
+  "verification_pending": ["annotation_processing", "rejected"],
 };
 
 /** 终态：无出边。 */
@@ -594,6 +597,94 @@ export interface AlgoResultCallback {
   pipeline_complete: boolean;
   /** 回调时间（UTC） */
   reported_at: string;
+}
+
+/** 送标处理结果回调（Scheduler → ``POST /callbacks/annotation-processing``）。 */
+export interface AnnotationProcessingCallback {
+  /** Episode ID */
+  episode_id: string;
+  /** 送标处理是否成功 */
+  succeeded: boolean;
+  /** 失败原因 */
+  error_message?: string | null;
+  /** 回调时间（UTC） */
+  reported_at: string;
+}
+
+/** 一次算子运行的落库记录（Platform 读侧）。 */
+export interface AlgoJobRunRecord {
+  /** 所属 Episode */
+  episode_id: string;
+  /** 作业 ID */
+  job_id: string;
+  /** 算子类型 */
+  operator: AlgoOperator;
+  /** 作业最终状态 */
+  status: JobStatus;
+  /** 模型版本（镜像 tag） */
+  model_version: string;
+  /** 失败原因；成功为 None */
+  error_message?: string | null;
+  /** 开始时间（UTC） */
+  started_at: string;
+  /** 结束时间（UTC） */
+  finished_at: string;
+}
+
+/** 训练集构建视图。 */
+export interface Dataset {
+  /** 训练集 ID（UUID） */
+  dataset_id: string;
+  /** 构建状态 */
+  status: JobStatus;
+  /** 纳入清单；构建时校验必须全部为 published */
+  episode_ids: string[];
+  /** 导出格式，如 lerobot / rlds */
+  output_format: string;
+  /** 发起人 user_id */
+  requested_by: string;
+  /** 产物位置（manifest.json 的对象键）；未构建完成时为 None */
+  manifest_key?: string | null;
+  /** 构建失败原因 */
+  failure_reason?: string | null;
+  /** 受理时间（UTC） */
+  created_at: string;
+  /** 最后更新时间（UTC） */
+  updated_at: string;
+}
+
+/** Scheduler 触发训练集构建。 */
+export interface DatasetBuildCallback {
+  /** 训练集 ID */
+  dataset_id: string;
+  /** 触发时间（UTC） */
+  requested_at: string;
+}
+
+/** 流转触发者。 */
+export interface TransitionActor {
+  /** 人工推进还是系统推进 */
+  actor_type: "user" | "system";
+  /** 人工推进者；系统推进时为 None */
+  user_id?: string | null;
+  /** 系统环节名，如 upload_callback / scheduler；人工推进时为 None */
+  system_component?: string | null;
+}
+
+/** 一条状态流转记录。 */
+export interface TransitionRecord {
+  /** 所属 Episode */
+  episode_id: string;
+  /** 源状态 */
+  from_status: EpisodeStatus;
+  /** 目标状态 */
+  to_status: EpisodeStatus;
+  /** 触发者 */
+  actor: TransitionActor;
+  /** 打回/失败原因；正常推进为 None */
+  reason?: string | null;
+  /** 发生时间（UTC） */
+  occurred_at: string;
 }
 
 /** 用户视图。 */

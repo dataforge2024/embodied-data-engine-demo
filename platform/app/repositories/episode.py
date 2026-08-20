@@ -9,11 +9,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 from rdh_contract.enums import EpisodeStatus
-from rdh_contract.schemas import Episode, KeyFrame, QualityReport, Segment, SensorStream
+from rdh_contract.schemas import (
+    Episode,
+    KeyFrame,
+    QualityReport,
+    Segment,
+    SensorStream,
+    TransitionActor,
+)
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.episode import EpisodeRow
+from app.repositories.transition import TransitionRepository
 
 
 def row_to_episode(row: EpisodeRow) -> Episode:
@@ -116,20 +124,41 @@ class EpisodeRepository:
         episode_id: str,
         *,
         target: EpisodeStatus,
+        actor: TransitionActor,
         reject_reason: str | None = None,
-    ) -> Episode:
-        """写入新状态。
+    ) -> tuple[Episode, bool]:
+        """写入新状态并记录流转。
 
         **调用前必须已过 contract 守卫** —— 本方法不做合法性判断，
         唯一合法调用方是 ``services/episode_lifecycle.py``。
+
+        Returns:
+            (更新后的 Episode, changed) —— changed=False 表示目标状态已达成（幂等重放）
         """
         row = await self._require_row(episode_id)
+        from_status = EpisodeStatus(row.status)
+
+        # 幂等：目标状态已达成，不重复记录
+        if from_status == target:
+            return row_to_episode(row), False
+
         row.status = target.value
         if reject_reason is not None:
             row.reject_reason = reject_reason
         row.updated_at = datetime.now(UTC)
         await self._session.flush()
-        return row_to_episode(row)
+
+        # 轨迹记录收口在此：状态变不了而不经过本方法，所以这里不会漏记
+        # （design.md 第 7 节）。重放已在上面返回，非法迁移被 lifecycle 的守卫拦在外面。
+        await TransitionRepository(self._session).record(
+            episode_id=episode_id,
+            from_status=from_status,
+            to_status=target,
+            actor=actor,
+            reason=reject_reason,
+        )
+
+        return row_to_episode(row), True
 
     async def attach_upload_result(
         self,

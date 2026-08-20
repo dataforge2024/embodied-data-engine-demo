@@ -18,6 +18,12 @@ Episode 是一次采集的最小单元（一个 MCAP 文件）。状态机的权
 另一个文档未明确的点：**标注审核「退回」不是新状态**，而是回到 `annotation_pending` 重做，
 `Annotation.revision` 计数 +1。退回重做与核验打回语义不同，不要混用 `rejected`。
 
+此外新增了一个中间态 `annotation_processing`（送标处理）：质检通过后先过一个异步环节，
+不再直接进 `annotation_pending`。它与 `processing` 分开而不复用，因为两者的回调语义不同
+（一个「解析完等人看」，一个「送标完等人标」）。理由见
+[`openspec/changes/manual-workflow-progression/design.md`](../openspec/changes/manual-workflow-progression/design.md) 第 1 节。
+本阶段该环节不跑算子（同文档第 2 节）。
+
 ## 状态流转图
 
 ```
@@ -41,6 +47,10 @@ Episode 是一次采集的最小单元（一个 MCAP 文件）。状态机的权
             │ verification_pending   │    │
             └────┬──────────────┬────┘    │
        核验通过  │              │ 核验打回 │
+    ┌────────────▼──────────┐   │         │
+    │ annotation_processing │───┼─────────┤ 送标处理失败
+    └────────────┬──────────┘   │         │
+       送标完成   │              │         │
      ┌───────────▼────────┐     │         │
      │ annotation_pending │     │         │
      └────┬───────────────┘     │         │
@@ -63,8 +73,9 @@ Episode 是一次采集的最小单元（一个 MCAP 文件）。状态机的权
 | `uploading` | 分片上传中 | 录制结束 | `uploaded` / `failed` | Agent（交互②） |
 | `uploaded` | MCAP 已在 MinIO，待处理 | 上传回调 + checksum 校验通过 | `processing` / `failed` | Platform（交互③） |
 | `processing` | 解析 + 算子流水线执行中 | Scheduler 消费 `episode.uploaded` | `verification_pending` / `failed` | Scheduler（交互⑥⑦） |
-| `verification_pending` | 待人工核验 | 流水线全部算子成功（`pipeline_complete=true`） | `annotation_pending` / `rejected` | Scheduler 回调（交互⑧） |
-| `annotation_pending` | 待人工标注 | 核验通过 | `annotation_review` / `rejected` | Verifier（交互④） |
+| `verification_pending` | 待人工核验 | 流水线全部算子成功（`pipeline_complete=true`） | `annotation_processing` / `rejected` | Scheduler 回调（交互⑧） |
+| `annotation_processing` | 送标处理中（异步，本阶段不跑算子） | 核验通过 | `annotation_pending` / `failed` | Annotator 触发 → Scheduler 回调 |
+| `annotation_pending` | 待人工标注 | 送标处理完成 | `annotation_review` / `rejected` | Scheduler 回调（送标完成） |
 | `annotation_review` | 待标注审核 | 标注提交 | `published` / `annotation_pending` / `rejected` | Annotator（交互④） |
 | `published` | 已发布，可并入训练集 | 审核通过 | 终态 | Reviewer（交互④） |
 | `rejected` | 人工判定不可用 | 核验打回或审核判定不可用 | 终态 | Verifier / Reviewer |

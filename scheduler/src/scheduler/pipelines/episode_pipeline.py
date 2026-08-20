@@ -68,6 +68,42 @@ class EpisodePipeline:
         )
         return results
 
+    async def handle_annotation_processing(self, episode_id: str) -> bool:
+        """送标处理：质检通过后准备标注数据，随后回调 Platform 推进状态。
+
+        **本阶段不跑算子**（design.md 第 2 节）：4 个算子在解析阶段已经跑过一遍，
+        「送标再跑什么」尚未定义。所以这里只是一个可见的异步环节 —— 状态本身有价值
+        （送标中可见、失败有去处、可重试），内部跑什么可以后填。将来接算子时改的是
+        本方法内部，状态机不用再动。
+
+        失败也要回调：算子挂了而不上报，Episode 会静默留在 ``annotation_processing``，
+        点过质检的人以为提交成功了 —— 这与 ``uploaded → processing`` 踩过的坑同源。
+
+        返回是否成功。触发方式尚未收口：契约里没有对应事件，当前由调用方（demo /
+        e2e）直接调用。
+        """
+        logger.info("送标处理启动 episode=%s", episode_id)
+        try:
+            await self._prepare_annotation_data(episode_id)
+        except Exception as exc:
+            logger.exception("送标处理失败 episode=%s", episode_id)
+            await self._platform.report_annotation_processing(
+                episode_id=episode_id, succeeded=False, error_message=f"送标处理失败：{exc}"
+            )
+            return False
+
+        await self._platform.report_annotation_processing(episode_id=episode_id, succeeded=True)
+        logger.info("送标处理完成 episode=%s", episode_id)
+        return True
+
+    async def _prepare_annotation_data(self, episode_id: str) -> None:
+        """准备标注数据。
+
+        本阶段是空操作 —— 解析阶段的 ``preannotate`` 产物已经落在 Episode 上，
+        Tool 直接读它即可。留这个方法是为了让「送标要做什么」有一个明确的落点，
+        接算子时不必再改 :meth:`handle_annotation_processing` 的错误处理与回调逻辑。
+        """
+
     async def _run_operators(
         self, *, episode_id: str, input_object_key: str
     ) -> tuple[AlgoJobResult, ...]:

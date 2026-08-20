@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 
 from rdh_contract.enums import EpisodeStatus
 from rdh_contract.events import AnnotationApproved, EpisodeRejected, EpisodeUploaded
-from rdh_contract.schemas import Episode
+from rdh_contract.schemas import Episode, TransitionActor
 from rdh_contract.state_machine import InvalidTransitionError, assert_transition, is_terminal
 
 from app.repositories.episode import EpisodeRepository
@@ -59,6 +59,7 @@ class EpisodeLifecycleService:
         episode_id: str,
         *,
         target: EpisodeStatus,
+        actor: TransitionActor,
         reject_reason: str | None = None,
     ) -> TransitionOutcome:
         """执行一次状态迁移，非法则抛 :class:`InvalidTransitionError`（上层转 409）。"""
@@ -69,10 +70,10 @@ class EpisodeLifecycleService:
             return TransitionOutcome(episode=current, changed=False)
 
         assert_transition(current.status, target)
-        updated = await self._episodes.apply_transition(
-            episode_id, target=target, reject_reason=reject_reason
+        updated, changed = await self._episodes.apply_transition(
+            episode_id, target=target, actor=actor, reject_reason=reject_reason
         )
-        return TransitionOutcome(episode=updated, changed=True)
+        return TransitionOutcome(episode=updated, changed=changed)
 
     async def mark_uploaded(
         self,
@@ -101,7 +102,11 @@ class EpisodeLifecycleService:
             checksum=checksum,
             duration_ms=duration_ms,
         )
-        episode = await self._episodes.apply_transition(episode_id, target=EpisodeStatus.UPLOADED)
+
+        actor = TransitionActor(actor_type="system", system_component="upload_callback")
+        episode, _ = await self._episodes.apply_transition(
+            episode_id, target=EpisodeStatus.UPLOADED, actor=actor
+        )
 
         # 状态已落库，再发事件
         event_id = await self._publisher.publish(
@@ -121,8 +126,8 @@ class EpisodeLifecycleService:
         # 事件已投递即视为进入处理：Scheduler 只上报结果、不改 Platform 状态，
         # 若这里不推进，它回调 algo-result 时 processing → verification_pending
         # 会因当前仍是 uploaded 而非法（409），整条解析链路静默卡死。
-        processing = await self._episodes.apply_transition(
-            episode_id, target=EpisodeStatus.PROCESSING
+        processing, _ = await self._episodes.apply_transition(
+            episode_id, target=EpisodeStatus.PROCESSING, actor=actor
         )
         return TransitionOutcome(
             episode=processing, changed=True, published_event_id=event_id
@@ -130,26 +135,53 @@ class EpisodeLifecycleService:
 
     async def start_processing(self, episode_id: str) -> TransitionOutcome:
         """Scheduler 开始处理 → ``processing``。"""
-        return await self.transition(episode_id, target=EpisodeStatus.PROCESSING)
+        actor = TransitionActor(actor_type="system", system_component="scheduler")
+        return await self.transition(episode_id, target=EpisodeStatus.PROCESSING, actor=actor)
 
     async def finish_processing(
         self, episode_id: str, *, succeeded: bool, error_message: str | None = None
     ) -> TransitionOutcome:
         """交互⑧：流水线结束 → ``verification_pending`` 或 ``failed``。"""
+        actor = TransitionActor(actor_type="system", system_component="scheduler")
         if succeeded:
-            return await self.transition(episode_id, target=EpisodeStatus.VERIFICATION_PENDING)
+            return await self.transition(
+                episode_id, target=EpisodeStatus.VERIFICATION_PENDING, actor=actor
+            )
         return await self.transition(
             episode_id,
             target=EpisodeStatus.FAILED,
+            actor=actor,
             reject_reason=error_message or "算子流水线失败",
+        )
+
+    async def finish_annotation_processing(
+        self, episode_id: str, *, succeeded: bool, error_message: str | None = None
+    ) -> TransitionOutcome:
+        """送标处理结束 → ``annotation_pending`` 或 ``failed``。
+
+        由 Scheduler 在质检通过后的送标环节结束时回调。与 :meth:`finish_processing`
+        分开而不复用，是因为两者的源状态不同（``annotation_processing`` 对
+        ``processing``），合成一个方法就得靠参数区分，回调方容易传错。
+        """
+        actor = TransitionActor(actor_type="system", system_component="scheduler")
+        if succeeded:
+            return await self.transition(
+                episode_id, target=EpisodeStatus.ANNOTATION_PENDING, actor=actor
+            )
+        return await self.transition(
+            episode_id,
+            target=EpisodeStatus.FAILED,
+            actor=actor,
+            reject_reason=error_message or "送标处理失败",
         )
 
     async def reject(
         self, episode_id: str, *, reason: str, rejected_by: str, task_id: str | None = None
     ) -> TransitionOutcome:
         """核验打回 → ``rejected``（终态），并发布 ``episode.rejected``。"""
+        actor = TransitionActor(actor_type="user", user_id=rejected_by)
         outcome = await self.transition(
-            episode_id, target=EpisodeStatus.REJECTED, reject_reason=reason
+            episode_id, target=EpisodeStatus.REJECTED, actor=actor, reject_reason=reason
         )
         if not outcome.changed:
             return outcome
@@ -171,7 +203,8 @@ class EpisodeLifecycleService:
         self, episode_id: str, *, annotation_id: str, segment_count: int, approved_by: str
     ) -> TransitionOutcome:
         """审核通过 → ``published``，并发布 ``annotation.approved``。"""
-        outcome = await self.transition(episode_id, target=EpisodeStatus.PUBLISHED)
+        actor = TransitionActor(actor_type="user", user_id=approved_by)
+        outcome = await self.transition(episode_id, target=EpisodeStatus.PUBLISHED, actor=actor)
         if not outcome.changed:
             return outcome
 

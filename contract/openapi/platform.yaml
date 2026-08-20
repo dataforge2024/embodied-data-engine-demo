@@ -152,6 +152,66 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /episodes/{episode_id}/transitions:
+    get:
+      tags: [episodes]
+      summary: 查询状态流转轨迹
+      description: |
+        按时间正序返回该 Episode 的全部状态流转记录。相邻两条记录的时间差即为
+        前一状态的停留时长 —— 停留时长不单独存字段，由调用方推导。
+
+        幂等重放（目标状态已达成）不留记录，所以轨迹里不会出现源目标相同的条目。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TransitionRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /episodes/{episode_id}/algo-jobs:
+    get:
+      tags: [episodes]
+      summary: 查询算子运行日志
+      description: |
+        按时间正序返回该 Episode 自动环节（processing）跑过的每个算子结果 ——
+        跑了哪个算子、成不成功、耗时多久、失败原因是什么。
+
+        与 /transitions 互补：那个端点答「卡在哪个状态」，这个答「自动环节干了什么」。
+      parameters:
+        - $ref: '#/components/parameters/EpisodeId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlgoJobRunRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /tasks:
     get:
       tags: [tasks]
@@ -483,6 +543,34 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /datasets/{dataset_id}:
+    get:
+      tags: [datasets]
+      summary: 获取训练集构建状态
+      description: |
+        返回构建状态与产物位置。没有这个端点，构建完成与否只能翻日志。
+        `status` 为 `succeeded` 时 `manifest_key` 才有值。
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Dataset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /agents:
     get:
       tags: [agents]
@@ -588,6 +676,91 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /callbacks/annotation-processing:
+    post:
+      tags: [callbacks]
+      summary: 送标处理结果回调（Scheduler 调用）
+      description: |
+        质检通过后的送标环节结束时调用，驱动 `annotation_processing → annotation_pending`
+        （成功）或 `→ failed`（失败，`error_message` 必填）。
+
+        **与 `/callbacks/algo-result` 是两个不同端点，不要合并。** 后者的源状态是
+        `processing`（解析阶段），本回调的源状态是 `annotation_processing`（送标阶段）。
+
+        鉴权用 Scheduler 专用凭据（`schedulerAuth`）。
+      security:
+        - schedulerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationProcessingCallback'
+      responses:
+        '200':
+          description: 已接收
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Episode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /callbacks/dataset-build:
+    post:
+      tags: [callbacks]
+      summary: 触发训练集构建（Scheduler 调用）
+      description: |
+        Scheduler 消费 `dataset.build_requested` 后调本端点做实际构建，驱动 dataset
+        `pending → running → succeeded`（或 `→ failed`）。
+
+        **构建在 Platform 而不是 Scheduler 做**：清单要写人工标注后的最终分段，那份数据
+        只在 Platform 的库里，而 Scheduler 按依赖铁律不能直连 DB。Scheduler 负责「什么
+        时候建」（消费事件、重试），Platform 负责「建出什么」。
+
+        产物是 `manifest.json` 清单，**不是可直接训练的打包数据** —— lerobot / rlds
+        的真实格式转换单开 change。
+
+        422 表示确定性失败（清单里有 Episode 不存在或未发布），dataset 已落 `failed`，
+        调用方不应重试。
+
+        鉴权用 Scheduler 专用凭据（`schedulerAuth`）。
+      security:
+        - schedulerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetBuildCallback'
+      responses:
+        '200':
+          description: 构建完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Dataset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /health:
     get:
       tags: [health]
@@ -656,6 +829,12 @@ components:
       required: true
       schema:
         type: string
+    DatasetId:
+      name: dataset_id
+      in: path
+      required: true
+      schema:
+        type: string
 
   responses:
     Unauthorized:
@@ -706,6 +885,7 @@ components:
         - uploaded
         - processing
         - verification_pending
+        - annotation_processing
         - annotation_pending
         - annotation_review
         - published
@@ -1262,6 +1442,134 @@ components:
           type: boolean
           description: 仅为 true 时 Platform 才推进 Episode 状态
         reported_at:
+          type: string
+          format: date-time
+
+    AnnotationProcessingCallback:
+      type: object
+      description: 送标处理结果回调的请求体。源状态是 annotation_processing，与 algo-result 不同。
+      required: [episode_id, succeeded, reported_at]
+      properties:
+        episode_id:
+          type: string
+        succeeded:
+          type: boolean
+        error_message:
+          type: [string, 'null']
+          description: succeeded 为 false 时必填
+        reported_at:
+          type: string
+          format: date-time
+
+    DatasetBuildCallback:
+      type: object
+      description: |
+        触发训练集构建的请求体。只带 dataset_id —— 清单要写的是人工标注后的最终分段，
+        那份数据在 Platform 的库里，Scheduler 不能直连 DB 所以传不了内容。
+      required: [dataset_id, requested_at]
+      properties:
+        dataset_id:
+          type: string
+        requested_at:
+          type: string
+          format: date-time
+
+    Dataset:
+      type: object
+      description: 训练集构建视图。本阶段产物是 manifest 清单，非可训练的打包数据。
+      required: [dataset_id, status, episode_ids, output_format, requested_by, created_at, updated_at]
+      properties:
+        dataset_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        episode_ids:
+          type: array
+          minItems: 1
+          description: 纳入清单；构建时校验必须全部为 published
+          items:
+            type: string
+        output_format:
+          type: string
+          description: 导出格式，如 lerobot / rlds
+        requested_by:
+          type: string
+        manifest_key:
+          type: [string, 'null']
+          description: 产物位置（manifest.json 的对象键）；未构建完成时为 null
+        failure_reason:
+          type: [string, 'null']
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TransitionActor:
+      type: object
+      description: |
+        流转触发者。actor_type=user 时填 user_id，system 时填 system_component。
+        系统推进不伪装成某个用户 —— 否则轨迹里会出现管理员从没做过的操作。
+      required: [actor_type]
+      properties:
+        actor_type:
+          type: string
+          enum: [user, system]
+          description: 人工推进还是系统推进
+        user_id:
+          type: [string, 'null']
+          description: 人工推进者；系统推进时为 null
+        system_component:
+          type: [string, 'null']
+          description: 系统环节名，如 upload_callback / scheduler；人工推进时为 null
+
+    TransitionRecord:
+      type: object
+      description: 一条状态流转记录。只在状态真的变了时产生，幂等重放不留记录。
+      required: [episode_id, from_status, to_status, actor, occurred_at]
+      properties:
+        episode_id:
+          type: string
+        from_status:
+          $ref: '#/components/schemas/EpisodeStatus'
+        to_status:
+          $ref: '#/components/schemas/EpisodeStatus'
+        actor:
+          $ref: '#/components/schemas/TransitionActor'
+        reason:
+          type: [string, 'null']
+          description: 打回/失败原因；正常推进为 null
+        occurred_at:
+          type: string
+          format: date-time
+
+    AlgoJobRunRecord:
+      type: object
+      description: |
+        一次算子运行的落库记录。与 TransitionRecord 互补：一个答「卡在哪个状态」，
+        一个答「自动环节干了什么」。
+      required:
+        [episode_id, job_id, operator, status, model_version, started_at, finished_at]
+      properties:
+        episode_id:
+          type: string
+        job_id:
+          type: string
+        operator:
+          $ref: '#/components/schemas/AlgoOperator'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        model_version:
+          type: string
+          description: 模型版本（镜像 tag）
+        error_message:
+          type: [string, 'null']
+          description: 失败原因；成功为 null
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
           type: string
           format: date-time
 

@@ -1,0 +1,87 @@
+/* 算子运行日志。变量在 App.css 里定义。 */
+
+.algo-log-empty {
+  margin: 0;
+  padding: var(--spacing-md);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.algo-job-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.algo-job-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: 6px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.algo-job-row.bad {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ef4444 40%, transparent);
+}
+
+.algo-job-status {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.algo-job-status.succeeded {
+  background: color-mix(in srgb, #10b981 20%, transparent);
+  color: #6ee7b7;
+}
+
+.algo-job-status.failed,
+.algo-job-status.timeout {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #fca5a5;
+}
+
+.algo-job-status.running,
+.algo-job-status.pending {
+  background: color-mix(in srgb, #38bdf8 18%, transparent);
+  color: #7dd3fc;
+}
+
+.algo-job-operator {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.algo-job-version,
+.algo-job-duration,
+.algo-job-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.algo-job-time {
+  margin-left: auto;
+}
+
+.algo-job-error {
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+  padding: 4px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  font-size: 0.75rem;
+  color: #fca5a5;
+}

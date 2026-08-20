@@ -69,6 +69,30 @@ class AlgoJobResult(ContractModel):
         return (self.finished_at - self.started_at).total_seconds()
 
 
+class AlgoJobRunRecord(ContractModel):
+    """一次算子运行的落库记录（Platform 读侧）。
+
+    与 :class:`AlgoJobResult`（回调线上传输）字段基本相同，区别是这是持久化后
+    查出来的记录，专供 ``GET /episodes/{id}/algo-jobs`` 返回 —— 界面据此展示
+    「这一阶段自动跑了什么、跑了多久、成不成功」，与 :class:`TransitionRecord`
+    （状态流转轨迹）互补：一个答「卡在哪个状态」，一个答「自动环节干了什么」。
+    """
+
+    episode_id: str = Field(description="所属 Episode")
+    job_id: str = Field(description="作业 ID")
+    operator: AlgoOperator = Field(description="算子类型")
+    status: JobStatus = Field(description="作业最终状态")
+    model_version: str = Field(description="模型版本（镜像 tag）")
+    error_message: str | None = Field(default=None, description="失败原因；成功为 None")
+    started_at: datetime = Field(description="开始时间（UTC）")
+    finished_at: datetime = Field(description="结束时间（UTC）")
+
+    @property
+    def duration_seconds(self) -> float:
+        """执行耗时。"""
+        return (self.finished_at - self.started_at).total_seconds()
+
+
 class AlgoResultCallback(ContractModel):
     """算子结果回调（交互⑧，Scheduler → ``POST /callbacks/algo-result``）。
 
@@ -92,4 +116,50 @@ class AlgoResultCallback(ContractModel):
         return all(r.status is JobStatus.SUCCEEDED for r in self.results)
 
 
-__all__ = ["AlgoJobResult", "AlgoJobSpec", "AlgoResultCallback"]
+class AnnotationProcessingCallback(ContractModel):
+    """送标处理结果回调（Scheduler → ``POST /callbacks/annotation-processing``）。
+
+    驱动 ``annotation_processing → annotation_pending``（成功）或 ``→ failed``（失败）。
+
+    与 :class:`AlgoResultCallback` 是**两个不同端点**：后者的源状态是 ``processing``
+    （解析阶段），本回调的源状态是 ``annotation_processing``（送标阶段）。合成一个端点
+    就得靠额外字段区分「我在哪个阶段」，回调方容易传错 —— 理由见
+    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
+
+    本阶段送标环节不跑算子（同文档第 2 节），所以没有产物字段；将来要接算子时
+    在这里加。
+    """
+
+    episode_id: str = Field(description="Episode ID")
+    succeeded: bool = Field(description="送标处理是否成功")
+    error_message: str | None = Field(default=None, description="失败原因")
+    reported_at: datetime = Field(description="回调时间（UTC）")
+
+    @model_validator(mode="after")
+    def _require_error_on_failure(self) -> "AnnotationProcessingCallback":
+        """失败必须给出原因，否则 Episode 落到 failed 后排障无从下手。"""
+        if not self.succeeded and not self.error_message:
+            raise ValueError("succeeded=False 必须填写 error_message")
+        return self
+
+
+class DatasetBuildCallback(ContractModel):
+    """Scheduler 触发训练集构建。
+
+    只带 ``dataset_id``：清单要写的是人工标注后的最终分段，那份数据在 Platform 的库里，
+    Scheduler 按依赖铁律不能直连 DB，所以它传不了内容，只能说「建这一个」。
+    Episode 清单与格式在受理时已落库，Platform 自己查得到。
+    """
+
+    dataset_id: str = Field(description="训练集 ID")
+    requested_at: datetime = Field(description="触发时间（UTC）")
+
+
+__all__ = [
+    "AlgoJobResult",
+    "AlgoJobRunRecord",
+    "AlgoJobSpec",
+    "AlgoResultCallback",
+    "AnnotationProcessingCallback",
+    "DatasetBuildCallback",
+]

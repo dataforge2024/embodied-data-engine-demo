@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help check demo demo-rabbit contract-sync contract-test contract-cov contract-lint \
         contract-gen platform-sync platform-lint scheduler-sync scheduler-lint agent-sync \
-        agent-lint algo-sync algo-lint tool-install tool-check web-install web-check \
+        agent-lint algo-sync algo-lint tool-install tool-check web-install web-check web-test \
         testing-sync testing-lint conformance e2e arch-check clean clean-runtime \
         broker-up broker-down broker-logs rabbit-paths
 
@@ -65,6 +65,9 @@ web-install:  ## 安装 platform 前端依赖
 web-check: web-install  ## platform 前端类型检查
 	cd platform/web && pnpm exec tsc --noEmit
 
+web-test: web-install  ## platform 前端单测（阶段映射的不变量）
+	cd platform/web && pnpm test
+
 # ---- Testing（横向质量保障）----
 
 testing-sync:  ## 安装 testing 依赖
@@ -108,7 +111,7 @@ rabbit-paths: testing-sync  ## 真 broker 上验三条失败路径（需先 make
 arch-check:  ## 校验依赖铁律：模块间不得直接 import
 	@bash scripts/arch_check.sh
 
-check: contract-lint contract-cov platform-lint scheduler-lint agent-lint algo-lint testing-lint tool-check web-check arch-check conformance e2e  ## 全量检查
+check: contract-lint contract-cov platform-lint scheduler-lint agent-lint algo-lint testing-lint tool-check web-check web-test arch-check conformance e2e  ## 全量检查
 
 clean:  ## 清理缓存与虚拟环境
 	rm -rf $(addsuffix /.venv,$(PY_MODULES))

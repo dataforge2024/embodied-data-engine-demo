@@ -12,7 +12,7 @@ class EpisodeStatus(StrEnum):
     主链路（架构文档第二节）::
 
         recording → uploading → uploaded → processing
-          → verification_pending → annotation_pending
+          → verification_pending → annotation_processing → annotation_pending
           → annotation_review → published
 
     补充的失败态（文档的核验「打回」与标注「退回」工作流隐含，但未命名）：
@@ -21,6 +21,11 @@ class EpisodeStatus(StrEnum):
     - ``FAILED``：处理链路异常（MCAP 解析失败、算子报错），终态，需人工介入。
 
     标注审核「退回」不是独立状态，而是回到 ``ANNOTATION_PENDING`` 重做。
+
+    ``ANNOTATION_PROCESSING`` 是质检通过后的送标处理环节（异步，系统推进）。它与
+    ``PROCESSING`` 分开而不复用，因为两者的回调语义不同：一个是「解析完等人看」，
+    一个是「送标完等人标」。理由见
+    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
     """
 
     RECORDING = "recording"
@@ -28,6 +33,7 @@ class EpisodeStatus(StrEnum):
     UPLOADED = "uploaded"
     PROCESSING = "processing"
     VERIFICATION_PENDING = "verification_pending"
+    ANNOTATION_PROCESSING = "annotation_processing"
     ANNOTATION_PENDING = "annotation_pending"
     ANNOTATION_REVIEW = "annotation_review"
     PUBLISHED = "published"

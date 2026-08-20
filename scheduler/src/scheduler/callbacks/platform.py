@@ -7,7 +7,13 @@
 import logging
 
 import httpx
-from rdh_contract.schemas.scheduler import AlgoJobResult, AlgoResultCallback
+from rdh_contract.schemas.base import ContractModel
+from rdh_contract.schemas.scheduler import (
+    AlgoJobResult,
+    AlgoResultCallback,
+    AnnotationProcessingCallback,
+    DatasetBuildCallback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,54 @@ class PlatformClient:
             pipeline_complete=pipeline_complete,
             reported_at=datetime.now(UTC),
         )
+        return await self._post("/callbacks/algo-result", callback, subject=episode_id)
 
-        url = f"{self._base_url}/callbacks/algo-result"
+    async def trigger_dataset_build(self, *, dataset_id: str) -> dict[str, object]:
+        """触发训练集构建。
+
+        构建本身在 Platform 做 —— 清单要写人工标注后的最终分段，那份数据只在 Platform
+        的库里，而 Scheduler 按依赖铁律不能直连 DB。这里负责的是「什么时候建」
+        （消费事件、重试），不是「建出什么」。
+        """
+        from datetime import UTC, datetime
+
+        callback = DatasetBuildCallback(
+            dataset_id=dataset_id, requested_at=datetime.now(UTC)
+        )
+        return await self._post("/callbacks/dataset-build", callback, subject=dataset_id)
+
+    async def report_annotation_processing(
+        self,
+        *,
+        episode_id: str,
+        succeeded: bool,
+        error_message: str | None = None,
+    ) -> dict[str, object]:
+        """上报送标处理结果。
+
+        驱动 ``annotation_processing → annotation_pending``（成功）或 ``→ failed``。
+        与 :meth:`report_algo_result` 是**两个不同端点**：后者的源状态是 ``processing``。
+        """
+        from datetime import UTC, datetime
+
+        callback = AnnotationProcessingCallback(
+            episode_id=episode_id,
+            succeeded=succeeded,
+            error_message=error_message,
+            reported_at=datetime.now(UTC),
+        )
+        return await self._post(
+            "/callbacks/annotation-processing", callback, subject=episode_id
+        )
+
+    async def _post(
+        self, path: str, callback: ContractModel, *, subject: str
+    ) -> dict[str, object]:
+        """POST 一个回调 payload，统一处理重放与错误。
+
+        409 视为**成功**：说明 Platform 侧状态已推进（重放），不该再重试。
+        """
+        url = f"{self._base_url}{path}"
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             try:
                 response = await client.post(
@@ -57,7 +109,7 @@ class PlatformClient:
                 raise PlatformCallbackError(f"回调请求失败：{exc}") from exc
 
         if response.status_code == 409:
-            logger.info("Platform 侧状态已推进（重放），视为成功 episode=%s", episode_id)
+            logger.info("Platform 侧状态已推进（重放），视为成功 subject=%s", subject)
             return {"conflict": True}
 
         if response.status_code >= 400:

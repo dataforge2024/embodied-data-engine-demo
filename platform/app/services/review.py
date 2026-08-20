@@ -40,7 +40,11 @@ class ReviewService:
     async def submit_verification(self, result: VerifyResult) -> TransitionOutcome:
         """提交核验结果。
 
-        通过 → ``annotation_pending``；打回 → ``rejected`` 终态并发事件。
+        通过 → ``annotation_processing``（送标处理，异步）；打回 → ``rejected`` 终态并发事件。
+
+        通过后不再直接进 ``annotation_pending`` —— 中间多了一个送标环节，由 Scheduler
+        处理完再回调推进。理由见
+        ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
         """
         await self._lifecycle.assert_actionable(
             result.episode_id, expected=EpisodeStatus.VERIFICATION_PENDING
@@ -53,8 +57,11 @@ class ReviewService:
                 reason=result.reason or "核验未通过",
                 rejected_by=result.verified_by,
             )
+        from rdh_contract.schemas import TransitionActor
+
+        actor = TransitionActor(actor_type="user", user_id=result.verified_by)
         return await self._lifecycle.transition(
-            result.episode_id, target=EpisodeStatus.ANNOTATION_PENDING
+            result.episode_id, target=EpisodeStatus.ANNOTATION_PROCESSING, actor=actor
         )
 
     async def submit_annotation(
@@ -74,8 +81,11 @@ class ReviewService:
         )
         # Episode 与 Annotation 两处都存分段：前者供查询与训练集构建，后者留审核轨迹
         await self._episodes.replace_segments(submission.episode_id, submission.segments)
+        from rdh_contract.schemas import TransitionActor
+
+        actor = TransitionActor(actor_type="user", user_id=annotated_by)
         outcome = await self._lifecycle.transition(
-            submission.episode_id, target=EpisodeStatus.ANNOTATION_REVIEW
+            submission.episode_id, target=EpisodeStatus.ANNOTATION_REVIEW, actor=actor
         )
         return annotation, outcome
 
@@ -90,9 +100,12 @@ class ReviewService:
         )
         annotation = await self._annotations.save_review_result(result)
 
+        from rdh_contract.schemas import TransitionActor
+
+        actor = TransitionActor(actor_type="user", user_id=result.reviewed_by)
         if result.decision is ReviewDecision.REJECT:
             return await self._lifecycle.transition(
-                result.episode_id, target=EpisodeStatus.ANNOTATION_PENDING
+                result.episode_id, target=EpisodeStatus.ANNOTATION_PENDING, actor=actor
             )
 
         outcome = await self._lifecycle.publish_episode(

@@ -5,10 +5,26 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 from rdh_contract.enums import EpisodeStatus
-from rdh_contract.schemas import ApiResponse, Episode, EpisodeCreate, PageMeta, PaginatedResponse
+from rdh_contract.schemas import (
+    AlgoJobRunRecord,
+    ApiResponse,
+    Episode,
+    EpisodeCreate,
+    PageMeta,
+    PaginatedResponse,
+    TransitionActor,
+    TransitionRecord,
+)
 from rdh_contract.state_machine import EPISODE_TRANSITIONS, INITIAL_STATE, TERMINAL_STATES
 
-from app.api.dependencies import CurrentUserDep, EpisodeRepoDep, LifecycleDep, SessionDep
+from app.api.dependencies import (
+    AlgoJobRunRepoDep,
+    CurrentUserDep,
+    EpisodeRepoDep,
+    LifecycleDep,
+    SessionDep,
+    TransitionRepoDep,
+)
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
 
@@ -103,9 +119,47 @@ async def start_upload(
     user: CurrentUserDep,
 ) -> ApiResponse[Episode]:
     """``recording → uploading``。由 Agent 在录制结束时调用。"""
-    outcome = await lifecycle.transition(episode_id, target=EpisodeStatus.UPLOADING)
+    outcome = await lifecycle.transition(
+        episode_id,
+        target=EpisodeStatus.UPLOADING,
+        actor=TransitionActor(actor_type="system", system_component="agent_report"),
+    )
     await session.commit()
     return ApiResponse(success=True, data=outcome.episode)
+
+
+@router.get("/{episode_id}/transitions", summary="查询状态流转轨迹")
+async def get_transitions(
+    episode_id: str,
+    episodes: EpisodeRepoDep,
+    transitions: TransitionRepoDep,
+    user: CurrentUserDep,
+) -> ApiResponse[list[TransitionRecord]]:
+    """按时间正序返回轨迹。
+
+    先确认 Episode 存在再查轨迹 —— 否则不存在的 ID 会拿到空列表，
+    与「存在但还没有流转记录」无法区分。
+    """
+    if await episodes.find_by_id(episode_id) is None:
+        raise KeyError(episode_id)
+    return ApiResponse(success=True, data=list(await transitions.get_history(episode_id)))
+
+
+@router.get("/{episode_id}/algo-jobs", summary="查询算子运行日志")
+async def get_algo_jobs(
+    episode_id: str,
+    episodes: EpisodeRepoDep,
+    algo_job_runs: AlgoJobRunRepoDep,
+    user: CurrentUserDep,
+) -> ApiResponse[list[AlgoJobRunRecord]]:
+    """按时间正序返回该 Episode 自动环节（processing）跑过的每个算子结果。
+
+    先确认 Episode 存在再查日志 —— 理由与 ``/transitions`` 相同：否则不存在的 ID
+    会拿到空列表，与「存在但自动环节还没跑完」无法区分。
+    """
+    if await episodes.find_by_id(episode_id) is None:
+        raise KeyError(episode_id)
+    return ApiResponse(success=True, data=list(await algo_job_runs.get_history(episode_id)))
 
 
 __all__ = ["router"]

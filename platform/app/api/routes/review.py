@@ -30,7 +30,7 @@ annotation_router = APIRouter(prefix="/annotation", tags=["annotation"])
 @verification_router.get("/queue", summary="核验队列")
 async def verification_queue(
     service: ReviewServiceDep,
-    user: Annotated[object, Depends(require_roles(Role.VERIFIER))],
+    user: Annotated[object, Depends(require_roles(Role.ANNOTATOR))],
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=200)] = 20,
 ) -> PaginatedResponse[Episode]:
@@ -47,7 +47,7 @@ async def submit_verification(
     result: VerifyResult,
     service: ReviewServiceDep,
     session: SessionDep,
-    user: Annotated[object, Depends(require_roles(Role.VERIFIER))],
+    user: Annotated[object, Depends(require_roles(Role.ANNOTATOR))],
 ) -> ApiResponse[Episode]:
     """通过 → ``annotation_pending``；打回 → ``rejected`` 终态并发事件。
 
@@ -79,7 +79,7 @@ async def annotation_queue(
 @annotation_router.get("/review-queue", summary="审核队列")
 async def review_queue(
     service: ReviewServiceDep,
-    user: Annotated[object, Depends(require_roles(Role.REVIEWER))],
+    user: Annotated[object, Depends(require_roles(Role.ANNOTATOR))],
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=200)] = 20,
 ) -> PaginatedResponse[Episode]:
@@ -129,7 +129,7 @@ async def submit_review(
     result: ReviewResult,
     service: ReviewServiceDep,
     session: SessionDep,
-    user: Annotated[object, Depends(require_roles(Role.REVIEWER))],
+    user: Annotated[object, Depends(require_roles(Role.ANNOTATOR))],
 ) -> ApiResponse[Episode]:
     """通过 → ``published`` 并发 ``annotation.approved``；退回 → 回 ``annotation_pending`` 重做。"""
     if result.episode_id != episode_id:

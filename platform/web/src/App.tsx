@@ -5,18 +5,17 @@ import { ConfigProvider, theme } from "antd";
 import type { Role } from "@contract";
 import { TaskDetailPage } from "./pages/admin/TaskDetailPage";
 import { TasksPage } from "./pages/admin/TasksPage";
-import { EpisodesPage } from "./pages/recorder/EpisodesPage";
 import { SysOpsPage } from "./pages/sysops/SysOpsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { contractVersion, setAccessToken } from "./api/client";
 import { useCurrentUser } from "./hooks/useCurrentUser";
 import "./App.css";
 
-type Workspace = "admin" | "recorder" | "sysops";
+type Workspace = "admin" | "sysops";
 
 /**
  * 工作区 → 可进入的角色。与后端 require_roles 对齐：
- * 任务的增删改派是 admin 独占；采集记录与运维监控 admin/recorder 都能看。
+ * 任务的增删改派是 admin 独占；运维监控 admin/recorder 都能看。
  * admin 通配由 useCurrentUser().can 处理。
  */
 const WORKSPACES: ReadonlyArray<{
@@ -25,7 +24,6 @@ const WORKSPACES: ReadonlyArray<{
   roles: readonly Role[];
 }> = [
   { key: "admin", label: "任务管理", roles: ["admin"] },
-  { key: "recorder", label: "采集记录", roles: ["admin", "recorder"] },
   { key: "sysops", label: "运维监控", roles: ["admin", "recorder"] },
 ];
 
@@ -140,7 +138,6 @@ export function App() {
                 onBack={() => setOpenTaskId(null)}
               />
             ))}
-          {active === "recorder" && <EpisodesPage />}
           {active === "sysops" && <SysOpsPage />}
           {active === null && (
             <div className="error-state" role="alert">

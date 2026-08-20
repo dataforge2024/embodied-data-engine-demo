@@ -309,6 +309,54 @@
   opacity: 0.65;
 }
 
+/* 展开轨迹的按钮列。窄到只放得下一个三角，不占表格宽度 */
+.expand-cell {
+  width: 24px;
+  padding-right: 0 !important;
+}
+
+.expand-button {
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.expand-button:hover {
+  color: var(--accent);
+}
+
+/* 轨迹行：整行让给时间轴，去掉 hover 高亮免得和上一行连成一片 */
+.data-table .timeline-row-wrapper:hover {
+  background: none;
+}
+
+.data-table .timeline-row-wrapper > td {
+  padding: 0 var(--spacing-md) var(--spacing-sm) 42px;
+  background: var(--surface-1);
+}
+
+/* 展开行：轨迹与算子日志并排，窄屏时各自占满一行 */
+.expanded-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.expanded-section-title {
+  margin: 0 0 var(--spacing-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .task-name {
   font-weight: 500;
 }

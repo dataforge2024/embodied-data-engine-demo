@@ -7,9 +7,18 @@ from .agent import AgentHeartbeat, AgentNode, AgentTaskPush, UploadCallback, Upl
 from .annotation import Annotation, AnnotationSubmit, ReviewResult, VerifyResult
 from .base import ContractModel
 from .common import ApiResponse, ErrorDetail, PageMeta, PaginatedResponse
+from .dataset import Dataset
 from .episode import Episode, EpisodeCreate, KeyFrame, QualityReport, Segment, SensorStream
-from .scheduler import AlgoJobResult, AlgoJobSpec, AlgoResultCallback
+from .scheduler import (
+    AlgoJobResult,
+    AlgoJobRunRecord,
+    AlgoJobSpec,
+    AlgoResultCallback,
+    AnnotationProcessingCallback,
+    DatasetBuildCallback,
+)
 from .task import CollectTask, TaskAssignment, TaskCreate, TaskRequirement
+from .transition import TransitionActor, TransitionRecord
 from .user import LoginRequest, TokenPayload, TokenResponse, User
 
 __all__ = [
@@ -17,13 +26,17 @@ __all__ = [
     "AgentNode",
     "AgentTaskPush",
     "AlgoJobResult",
+    "AlgoJobRunRecord",
     "AlgoJobSpec",
     "AlgoResultCallback",
     "Annotation",
+    "AnnotationProcessingCallback",
     "AnnotationSubmit",
     "ApiResponse",
     "CollectTask",
     "ContractModel",
+    "Dataset",
+    "DatasetBuildCallback",
     "Episode",
     "EpisodeCreate",
     "ErrorDetail",
@@ -40,6 +53,8 @@ __all__ = [
     "TaskRequirement",
     "TokenPayload",
     "TokenResponse",
+    "TransitionActor",
+    "TransitionRecord",
     "UploadCallback",
     "UploadProgress",
     "User",

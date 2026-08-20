@@ -21,6 +21,9 @@ async def ensure_demo_users(
 ) -> list[User]:
     """幂等创建 demo 用户，仅当用户表为空时。
 
+    三个账号：``admin``（通配）/ ``recorder``（采集+运维）/ ``annotator``（质检+标注+审核）。
+    枚举里的 ``VERIFIER`` / ``REVIEWER`` / ``LAB`` / ``SYSOPS`` 无账号，是死角色。
+
     返回创建的用户列表（若已存在则返回空列表）。
     """
     from app.repositories.user import UserRepository
@@ -46,6 +49,18 @@ async def ensure_demo_users(
             display_name="采集员",
             password_hash=pw_hash,
             roles=[Role.RECORDER.value],
+            active=True,
+            created_at=datetime.now(UTC),
+        ),
+        # 质检、标注、审核三个环节共用这一个角色 —— 端点要求已收敛为 ANNOTATOR。
+        # 代价是审核与被审核同人（四眼原则失效），见
+        # openspec/changes/manual-workflow-progression/design.md 第 3 节。
+        UserRow(
+            user_id=str(uuid.uuid4()),
+            username="annotator",
+            display_name="标注员",
+            password_hash=pw_hash,
+            roles=[Role.ANNOTATOR.value],
             active=True,
             created_at=datetime.now(UTC),
         ),

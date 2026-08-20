@@ -5,13 +5,16 @@
 - :meth:`CallbackService.handle_upload_complete` —— Agent 调用，驱动 ``uploading → uploaded``
 - :meth:`CallbackService.handle_algo_result` —— Scheduler 调用，驱动
   ``processing → verification_pending / failed``
+- :meth:`CallbackService.handle_annotation_processing` —— Scheduler 调用，驱动
+  ``annotation_processing → annotation_pending / failed``
 """
 
 from rdh_contract.enums import AlgoOperator
 from rdh_contract.schemas import KeyFrame, QualityReport, Segment
 from rdh_contract.schemas.agent import UploadCallback
-from rdh_contract.schemas.scheduler import AlgoResultCallback
+from rdh_contract.schemas.scheduler import AlgoResultCallback, AnnotationProcessingCallback
 
+from app.repositories.algo_job_run import AlgoJobRunRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
 from app.services.episode_lifecycle import EpisodeLifecycleService, TransitionOutcome
@@ -32,11 +35,13 @@ class CallbackService:
         episodes: EpisodeRepository,
         tasks: TaskRepository,
         object_store: ObjectStore,
+        algo_job_runs: AlgoJobRunRepository,
     ) -> None:
         self._lifecycle = lifecycle
         self._episodes = episodes
         self._tasks = tasks
         self._store = object_store
+        self._algo_job_runs = algo_job_runs
 
     async def handle_upload_complete(
         self, callback: UploadCallback, *, verify_checksum: bool = True
@@ -68,14 +73,16 @@ class CallbackService:
     async def handle_algo_result(self, callback: AlgoResultCallback) -> TransitionOutcome:
         """交互⑧：Scheduler 汇报算子结果。
 
-        算子产物先落库，再按 ``pipeline_complete`` 决定是否推进状态 ——
-        单个算子完成只落数据，整条流水线完成才动状态。
+        每个算子的运行记录先落日志表（成功/失败都记，供界面回溯这一阶段自动跑了
+        什么），再把产物合入 Episode，最后按 ``pipeline_complete`` 决定是否推进
+        状态 —— 单个算子完成只落数据，整条流水线完成才动状态。
         """
         segments: tuple[Segment, ...] | None = None
         key_frames: tuple[KeyFrame, ...] | None = None
         quality: QualityReport | None = None
 
         for result in callback.results:
+            await self._algo_job_runs.record(callback.episode_id, result)
             if result.operator is AlgoOperator.PREANNOTATE and result.segments:
                 segments = result.segments
             elif result.operator is AlgoOperator.KEYFRAME and result.key_frames:
@@ -102,6 +109,20 @@ class CallbackService:
             callback.episode_id,
             succeeded=callback.all_succeeded,
             error_message="；".join(errors) if errors else None,
+        )
+
+    async def handle_annotation_processing(
+        self, callback: AnnotationProcessingCallback
+    ) -> TransitionOutcome:
+        """送标处理结束：``annotation_processing → annotation_pending / failed``。
+
+        本阶段送标环节不跑算子（design.md 第 2 节），所以没有产物要落库 ——
+        只推进状态。将来接算子时在这里补落库逻辑，与 :meth:`handle_algo_result` 一致。
+        """
+        return await self._lifecycle.finish_annotation_processing(
+            callback.episode_id,
+            succeeded=callback.succeeded,
+            error_message=callback.error_message,
         )
 
 
