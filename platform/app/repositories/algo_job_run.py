@@ -4,6 +4,7 @@
 同一套约定（POC 阶段没有归档策略）。
 """
 
+from rdh_contract.enums import AlgoOperator, JobStatus
 from rdh_contract.schemas import AlgoJobResult, AlgoJobRunRecord
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +17,9 @@ def row_to_record(row: AlgoJobRunRow) -> AlgoJobRunRecord:
     return AlgoJobRunRecord(
         episode_id=row.episode_id,
         job_id=row.job_id,
-        operator=row.operator,
-        status=row.status,
+        # 库里存的是枚举的字符串值，读回来要还原成枚举
+        operator=AlgoOperator(row.operator),
+        status=JobStatus(row.status),
         model_version=row.model_version,
         error_message=row.error_message,
         started_at=row.started_at,

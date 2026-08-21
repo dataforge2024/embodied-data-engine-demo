@@ -23,7 +23,7 @@ from rdh_contract.events import (
     EpisodeUploaded,
 )
 from rdh_contract.schemas import Episode, TransitionActor
-from rdh_contract.state_machine import InvalidTransitionError, assert_transition, is_terminal
+from rdh_contract.state_machine import assert_transition, is_terminal
 
 from app.repositories.episode import EpisodeRepository
 from app.services.event_publisher import EventPublisher
@@ -43,6 +43,23 @@ class TransitionOutcome:
 
 class EpisodeNotFoundError(KeyError):
     """Episode 不存在。上层转 404。"""
+
+
+class UnexpectedStatusError(ValueError):
+    """Episode 不在该操作要求的状态上。上层转 409。
+
+    与 :class:`~rdh_contract.state_machine.InvalidTransitionError` 不是一回事：
+    那个说「这条边不存在」，这个说「你来晚了/来早了，当前不是这一步」。复用前者会
+    把 ``(当前, 期望)`` 读成 ``(源, 目标)``，生成「不能从 annotation_review 迁移到
+    annotation_pending；允许的目标状态：annotation_pending, ...」这种自相矛盾的话。
+    """
+
+    def __init__(self, actual: EpisodeStatus, expected: EpisodeStatus) -> None:
+        self.actual = actual
+        self.expected = expected
+        super().__init__(
+            f"该操作要求 Episode 处于 {expected.value}，但它当前是 {actual.value}"
+        )
 
 
 class EpisodeLifecycleService:
@@ -255,13 +272,13 @@ class EpisodeLifecycleService:
         return TransitionOutcome(episode=outcome.episode, changed=True, published_event_id=event_id)
 
     async def assert_actionable(self, episode_id: str, *, expected: EpisodeStatus) -> Episode:
-        """校验 Episode 处于预期状态，否则抛 :class:`InvalidTransitionError`。
+        """校验 Episode 处于预期状态，否则抛 :class:`UnexpectedStatusError`。
 
         用于人工操作前的前置检查：终态 Episode 不接受任何操作。
         """
         episode = await self._require(episode_id)
         if episode.status is not expected:
-            raise InvalidTransitionError(episode.status, expected)
+            raise UnexpectedStatusError(episode.status, expected)
         return episode
 
     async def is_finalized(self, episode_id: str) -> bool:
@@ -269,4 +286,9 @@ class EpisodeLifecycleService:
         return is_terminal((await self._require(episode_id)).status)
 
 
-__all__ = ["EpisodeLifecycleService", "EpisodeNotFoundError", "TransitionOutcome"]
+__all__ = [
+    "EpisodeLifecycleService",
+    "EpisodeNotFoundError",
+    "TransitionOutcome",
+    "UnexpectedStatusError",
+]

@@ -273,7 +273,7 @@ export function EpisodeTable({
                         </section>
                         <section className="expanded-section">
                           <h4 className="expanded-section-title">
-                            算子运行日志
+                            自动环节日志
                           </h4>
                           <AlgoJobLog records={algoJobs} loading={loading} />
                         </section>

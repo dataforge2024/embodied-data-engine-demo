@@ -22,6 +22,7 @@ GPU_REQUIREMENTS: dict[AlgoOperator, int] = {
     AlgoOperator.ANOMALY: 1,
     AlgoOperator.QUALITY: 0,
     AlgoOperator.KEYFRAME: 0,
+    AlgoOperator.ANNOTATION_PROCESSING: 0,  # 不跑算子，仅日志占位
 }
 
 

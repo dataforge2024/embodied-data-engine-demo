@@ -167,14 +167,38 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
             password_hash=hash_password("demo-only-pass"),
             roles=(Role.ADMIN,),
         )
-        # 采集员。后续核验/标注/审核阶段复用它的 user_id —— 那些是直接调 service 层，
-        # 不过路由守卫，所以此处不需要给它 verifier/annotator/reviewer 角色。
+        # 采集员。demo 脚本里的核验/标注/审核复用它的 user_id —— 那些是直接调
+        # service 层，不过路由守卫，所以此处不需要给它 verifier/annotator/reviewer 角色。
         operator_user = await users.create(
             user_id=str(uuid.uuid4()),
             username="recorder",
             display_name="采集员",
             password_hash=hash_password("demo-only-pass"),
             roles=(Role.RECORDER,),
+        )
+        # Tool 前端走真实 HTTP 路由，是要过 require_roles 守卫的 —— demo 脚本绕开了
+        # 守卫，但人从浏览器点进 Tool 时不会。少了这三个用户，Tool 自动登录会 401，
+        # 深链进去就只能看到登录页。
+        await users.create(
+            user_id=str(uuid.uuid4()),
+            username="annotator",
+            display_name="标注员",
+            password_hash=hash_password("demo-only-pass"),
+            roles=(Role.ANNOTATOR,),
+        )
+        await users.create(
+            user_id=str(uuid.uuid4()),
+            username="verifier",
+            display_name="质检员",
+            password_hash=hash_password("demo-only-pass"),
+            roles=(Role.VERIFIER,),
+        )
+        await users.create(
+            user_id=str(uuid.uuid4()),
+            username="reviewer",
+            display_name="审核员",
+            password_hash=hash_password("demo-only-pass"),
+            roles=(Role.REVIEWER,),
         )
         agents = AgentNodeRepository(session, heartbeat_timeout_seconds=45)
         await agents.register(agent_id="agent-demo-01", hostname="collect-pc-01", version="0.1.0")
@@ -339,6 +363,8 @@ async def main() -> int:  # noqa: PLR0915 — demo 是线性叙事，拆开反�
 
     results = []
     for operator in AlgoOperator:
+        if operator is AlgoOperator.ANNOTATION_PROCESSING:
+            continue  # 不是真正的算子，送标处理在 run_annotation_processing 里单独模拟
         spec = build_spec(
             job_id=str(uuid.uuid4()),
             episode_id=episode_id,

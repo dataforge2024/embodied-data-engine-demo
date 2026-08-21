@@ -223,6 +223,8 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
 
     results = []
     for operator in AlgoOperator:
+        if operator is AlgoOperator.ANNOTATION_PROCESSING:
+            continue  # 不是真正的算子，送标处理在 demo 脚本里单独模拟
         spec = build_spec(
             job_id=str(uuid.uuid4()),
             episode_id=episode_id,
@@ -292,6 +294,9 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
         )
         await session.commit()
     assert outcome.episode.status is EpisodeStatus.ANNOTATION_PROCESSING
+    # 核验通过发的是 annotation.processing_requested，它与后面的 annotation.approved
+    # 共用 tool 队列 —— 记下此刻的基线，后面只断言「又多了一条」而不是队列总数。
+    tool_backlog_after_verify = publisher.pending_count("tool")
 
     # ---- 6b. 送标处理回调（Scheduler，本阶段不跑算子）----
     # 质检通过后不再直连 annotation_pending，中间多了这个异步环节。
@@ -367,7 +372,9 @@ async def test_full_pipeline_reaches_published(runtime: Path) -> None:
         await session.commit()
 
     assert outcome.episode.status is EpisodeStatus.PUBLISHED
-    assert publisher.pending_count("tool") == 1, "应发出 annotation.approved"
+    assert publisher.pending_count("tool") == tool_backlog_after_verify + 1, (
+        "应发出 annotation.approved"
+    )
 
     # 任务计数应已累加
     async with factory() as session:

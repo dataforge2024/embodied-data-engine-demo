@@ -90,6 +90,7 @@ class AlgoOperator(StrEnum):
     QUALITY = "quality"
     KEYFRAME = "keyframe"
     ANOMALY = "anomaly"
+    ANNOTATION_PROCESSING = "annotation_processing"
 
 
 class UploadStatus(StrEnum):

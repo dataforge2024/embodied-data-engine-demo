@@ -1,4 +1,4 @@
-/* 算子运行日志。变量在 App.css 里定义。 */
+/* 自动环节运行日志。变量在 App.css 里定义。 */
 
 .algo-log-empty {
   margin: 0;
@@ -7,72 +7,123 @@
   font-size: 0.85rem;
 }
 
-.algo-job-log {
+.algo-phase-log {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-sm);
 }
 
-.algo-job-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--spacing-sm);
-  padding: 6px var(--spacing-xs);
+.algo-phase {
+  padding: var(--spacing-sm) var(--spacing-xs);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 
-.algo-job-row.bad {
+.algo-phase.bad {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #ef4444 40%, transparent);
 }
 
-.algo-job-status {
+/* ---- 开始 / 完成两行 ---- */
+
+.algo-phase-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: 2px 0;
+}
+
+.algo-phase-dot {
   flex: 0 0 auto;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  white-space: nowrap;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--surface-3);
-  color: var(--text-muted);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.algo-job-status.succeeded {
-  background: color-mix(in srgb, #10b981 20%, transparent);
-  color: #6ee7b7;
+.algo-phase-dot.done {
+  background: #10b981;
+  box-shadow: none;
 }
 
-.algo-job-status.failed,
-.algo-job-status.timeout {
-  background: color-mix(in srgb, #ef4444 18%, transparent);
-  color: #fca5a5;
+.algo-phase-dot.fail {
+  background: #ef4444;
+  box-shadow: none;
 }
 
-.algo-job-status.running,
-.algo-job-status.pending {
-  background: color-mix(in srgb, #38bdf8 18%, transparent);
-  color: #7dd3fc;
-}
-
-.algo-job-operator {
+.algo-phase-label {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.algo-job-version,
-.algo-job-duration,
-.algo-job-time {
+.algo-phase-duration,
+.algo-phase-time {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
-.algo-job-time {
+.algo-phase-time {
+  margin-left: auto;
+}
+
+/* ---- 算子明细（默认收起）---- */
+
+.algo-phase-detail {
+  margin-top: 4px;
+}
+
+.algo-phase-detail summary {
+  cursor: pointer;
+  padding: 2px 0 2px 15px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.algo-phase-detail summary:hover {
+  color: var(--text-secondary);
+}
+
+.algo-job-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.algo-job-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: 3px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+
+.algo-job-item.bad {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ef4444 35%, transparent);
+}
+
+.algo-job-operator {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.algo-job-version,
+.algo-job-duration {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.algo-job-duration {
   margin-left: auto;
 }
 
@@ -81,7 +132,7 @@
   margin: 2px 0 0;
   padding: 4px var(--spacing-xs);
   border-radius: var(--radius-sm);
-  background: var(--surface-1);
+  background: var(--surface-2);
   font-size: 0.75rem;
   color: #fca5a5;
 }

@@ -16,7 +16,7 @@ from rdh_contract.state_machine import InvalidTransitionError
 
 from app.core.security import AuthError
 from app.services.callbacks import ChecksumMismatchError
-from app.services.episode_lifecycle import EpisodeNotFoundError
+from app.services.episode_lifecycle import EpisodeNotFoundError, UnexpectedStatusError
 from app.services.event_publisher import UnregisteredEventError
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,19 @@ def register_exception_handlers(app: FastAPI) -> None:
         return error_response(
             status_code=status.HTTP_409_CONFLICT,
             code="INVALID_STATE_TRANSITION",
+            message=str(exc),
+        )
+
+    @app.exception_handler(UnexpectedStatusError)
+    async def _unexpected_status(request: Request, exc: UnexpectedStatusError) -> JSONResponse:
+        """状态不符合操作要求 → 409。
+
+        与 ``INVALID_STATE_TRANSITION`` 分开：那个是「这条边不存在」，这个是「当前不是
+        这一步」—— 前端据 code 就能区分该提示「操作已失效，请刷新」还是「流程不允许」。
+        """
+        return error_response(
+            status_code=status.HTTP_409_CONFLICT,
+            code="UNEXPECTED_EPISODE_STATUS",
             message=str(exc),
         )
 
