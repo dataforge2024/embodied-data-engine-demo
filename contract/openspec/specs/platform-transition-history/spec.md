@@ -1,0 +1,105 @@
+# platform-transition-history Specification
+
+## Purpose
+TBD - created by archiving change manual-workflow-progression. Update Purpose after archive.
+## Requirements
+### Requirement: 每次状态变更都留一条记录
+
+Platform SHALL 在 Episode 状态实际发生变化时追加一条不可变的流转记录，SHALL NOT 覆盖或
+删除已有记录。
+
+记录点收口在状态写入的唯一入口处 —— 状态变更本就只有一条路径，记录跟着它走才不会漏。
+
+#### Scenario: 状态推进
+
+- **WHEN** Episode 的状态由某一状态变为另一状态
+- **THEN** 追加一条记录，含源状态、目标状态、发生时间
+- **AND** 已有记录不被改动
+
+#### Scenario: 重放不产生记录
+
+- **WHEN** 目标状态与当前状态相同（重放）
+- **THEN** 不追加记录 —— 状态没变，记录一条会让轨迹里出现假的停顿
+
+#### Scenario: 非法迁移不产生记录
+
+- **WHEN** 状态迁移因违反状态机被拒绝
+- **THEN** 不追加记录
+
+### Requirement: 记录能回答「谁在什么时候推的」
+
+每条流转记录 SHALL 标明触发者，使人工操作与系统自动推进可区分。
+
+#### Scenario: 人工推进
+
+- **WHEN** 状态变更由人在界面上的操作触发
+- **THEN** 记录标明操作者的用户标识
+
+#### Scenario: 系统推进
+
+- **WHEN** 状态变更由系统自动完成（如上传回调后进入处理态、算子回调后进入质检队列）
+- **THEN** 记录标明触发方是系统而非某个用户
+- **AND** 标明是哪个环节触发的
+
+#### Scenario: 带原因的变更
+
+- **WHEN** 状态变更附带原因（打回、失败、审核退回）
+- **THEN** 该原因记入本条记录
+
+### Requirement: 单条 Episode 的完整轨迹可查
+
+SHALL 提供按 Episode 查询其全部流转记录的入口，按时间正序返回。
+
+#### Scenario: 查询轨迹
+
+- **WHEN** 查询某条 Episode 的流转记录
+- **THEN** 返回它从创建至今的全部状态变更，按发生时间正序
+- **AND** 每条含源状态、目标状态、时间、触发者、原因
+
+#### Scenario: 轨迹含停留时长
+
+- **WHEN** 查看轨迹
+- **THEN** 能得出每个状态的停留时长 —— 用于看出卡在哪一步
+
+#### Scenario: 查询不存在的 Episode
+
+- **WHEN** 查询一个不存在的 Episode 的轨迹
+- **THEN** 返回未找到（404），而非空列表
+
+### Requirement: 脱轨的 Episode 能定位到死在哪一阶段
+
+失败与打回的 Episode SHALL 能借助流转记录还原它中断前走到了哪个阶段。
+
+当前展示层因拿不到历史，把脱轨态的所有阶段一律标为受阻 —— 有了流转记录后，
+SHALL 改为标出中断发生的位置。
+
+#### Scenario: 失败的 Episode
+
+- **WHEN** 某条 Episode 处于失败态
+- **THEN** 借助流转记录可确定它进入失败态之前所处的阶段
+- **AND** 展示层据此标出中断位置，而非把全部阶段标为受阻
+
+#### Scenario: 打回的 Episode
+
+- **WHEN** 某条 Episode 被打回
+- **THEN** 可区分它是在质检环节被打回，还是在标注审核环节被打回
+
+### Requirement: 流转记录在控制台可见
+
+控制台 SHALL 能展示流转轨迹，使人不必查库或翻日志就能看清一条 Episode 走过的全过程。
+
+#### Scenario: 查看单条轨迹
+
+- **WHEN** 用户在控制台展开某条 Episode 的轨迹
+- **THEN** 按顺序看到每一次状态变更、发生时间、触发者与原因
+
+#### Scenario: 区分人工与自动
+
+- **WHEN** 轨迹中同时含人工操作与系统推进
+- **THEN** 两者在界面上可区分
+
+#### Scenario: 卡住的环节可被看出
+
+- **WHEN** 某条 Episode 在某个状态停留时间显著长于其他状态
+- **THEN** 该停留在轨迹上可被看出
+

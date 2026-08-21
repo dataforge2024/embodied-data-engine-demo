@@ -23,7 +23,7 @@ class VerifyResult(ContractModel):
     ``REJECT`` → 进 ``rejected``（终态）。
 
     通过后不直连 ``annotation_pending`` —— 中间有一个送标环节，见
-    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
+    ``openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md`` 第 1 节。
     """
 
     episode_id: str = Field(description="被核验的 Episode ID")

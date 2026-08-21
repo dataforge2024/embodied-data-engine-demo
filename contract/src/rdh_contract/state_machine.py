@@ -67,7 +67,7 @@ EPISODE_TRANSITIONS: Mapping[EpisodeStatus, frozenset[EpisodeStatus]] = {
     # 人工核验（Tool，交互④）：通过进送标处理，打回则终止
     #
     # 注意这里不是直连 ANNOTATION_PENDING。质检通过后要先过一个异步的送标处理环节，
-    # 理由见 openspec/changes/manual-workflow-progression/design.md 第 1 节。
+    # 理由见 openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md 第 1 节。
     EpisodeStatus.VERIFICATION_PENDING: frozenset(
         {
             EpisodeStatus.ANNOTATION_PROCESSING,

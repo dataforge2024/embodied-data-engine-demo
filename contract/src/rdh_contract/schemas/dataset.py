@@ -20,7 +20,7 @@ class Dataset(ContractModel):
     """训练集构建视图。
 
     本阶段产物是 ``manifest.json`` 清单而非可训练的打包数据，理由见
-    ``openspec/changes/manual-workflow-progression/design.md`` 第 5 节。
+    ``openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md`` 第 5 节。
     """
 
     dataset_id: str = Field(description="训练集 ID（UUID）")

@@ -79,4 +79,4 @@ RabbitMQ 下消息即时且持久，若随后 commit 失败，Scheduler 会消�
 失败 → Agent 重试，这是安全的（无孤儿），但意味着 **broker 故障会阻塞上传链路**。
 
 生产解法是 transactional outbox。POC 不做，理由见
-`openspec/changes/scheduler-celery-rabbitmq/design.md`。
+`openspec/changes/archive/2026-08-19-scheduler-celery-rabbitmq/design.md`。

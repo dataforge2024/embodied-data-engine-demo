@@ -44,7 +44,7 @@ class ReviewService:
 
         通过后不再直接进 ``annotation_pending`` —— 中间多了一个送标环节，由 Scheduler
         处理完再回调推进。理由见
-        ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
+        ``openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md`` 第 1 节。
         """
         await self._lifecycle.assert_actionable(
             result.episode_id, expected=EpisodeStatus.VERIFICATION_PENDING

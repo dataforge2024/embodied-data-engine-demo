@@ -124,7 +124,7 @@ class AnnotationProcessingCallback(ContractModel):
     与 :class:`AlgoResultCallback` 是**两个不同端点**：后者的源状态是 ``processing``
     （解析阶段），本回调的源状态是 ``annotation_processing``（送标阶段）。合成一个端点
     就得靠额外字段区分「我在哪个阶段」，回调方容易传错 —— 理由见
-    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
+    ``openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md`` 第 1 节。
 
     本阶段送标环节不跑算子（同文档第 2 节），所以没有产物字段；将来要接算子时
     在这里加。

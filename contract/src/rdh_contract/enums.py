@@ -25,7 +25,7 @@ class EpisodeStatus(StrEnum):
     ``ANNOTATION_PROCESSING`` 是质检通过后的送标处理环节（异步，系统推进）。它与
     ``PROCESSING`` 分开而不复用，因为两者的回调语义不同：一个是「解析完等人看」，
     一个是「送标完等人标」。理由见
-    ``openspec/changes/manual-workflow-progression/design.md`` 第 1 节。
+    ``openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md`` 第 1 节。
     """
 
     RECORDING = "recording"

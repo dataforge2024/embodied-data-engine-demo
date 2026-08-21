@@ -4,7 +4,7 @@
 :class:`TransitionActor`（人工记 user_id，系统记环节名，不把系统伪装成用户）；
 后者靠相邻两条记录的时间差 —— 停留时长是可推导的，不存字段，避免不一致。
 
-理由见 ``openspec/changes/manual-workflow-progression/design.md`` 第 7 节。
+理由见 ``openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md`` 第 7 节。
 """
 
 from datetime import datetime

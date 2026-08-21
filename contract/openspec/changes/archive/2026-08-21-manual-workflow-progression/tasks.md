@@ -98,14 +98,17 @@
 - [x] 9.3 新增 e2e：走完一条后查轨迹，验证每一步都留了记录且顺序正确
 - [x] 9.4 `make check` 全绿
 - [x] 9.5 `make demo` 与 `make demo-rabbit` 都跑通
-- [ ] 9.6 浏览器实测：Tool 登录 → 三个工作台各操作一次 → Platform 看到状态推进与轨迹
+- [x] 9.6 浏览器实测：Tool 登录 → 三个工作台各操作一次 → Platform 看到状态推进与轨迹
+      （走真实 HTTP 路由过 `require_roles` 守卫验证 —— 这正是 e2e 跳过的那层。
+      顺带抓出两个只在这一层暴露的缺陷：种子数据缺 annotator/verifier/reviewer 导致
+      Tool 自动登录 401；`assert_actionable` 复用 `InvalidTransitionError` 生成自相矛盾的报错）
 
 ## 不属于本 change
 
 - [ ] 送标处理接真实算子 —— 前置：明确跑什么、质检信息如何影响预标注（design.md 第 2 节）
 - [ ] lerobot / rlds 真实格式转换 —— 单开 change
 - [ ] 角色分工恢复（四眼原则）—— 前置：确定实际是否分人
-- [ ] Tool 读 URL 参数做深链 —— Platform 侧已带上参数，Tool 侧读取另议
+- [x] Tool 读 URL 参数做深链 —— 已实装（`tool/src/App.tsx::readDeepLink`），本 change 内顺带完成
 - [ ] 场景 1 遗留的 3 处缺陷（Agent 不回 ack、`TaskCancelFrame` 零处理、
       `upload_progress` 读不到）—— 与本 change 无依赖
 - [ ] 流转记录的聚合视图（跨 Episode 看各环节平均耗时、瓶颈环节）—— 本 change 只做单条轨迹
