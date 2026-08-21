@@ -5,24 +5,26 @@ Episode 是一次采集的最小单元（一个 MCAP 文件）。状态机的权
 语义与负责方。**代码是事实来源，文档与代码不一致时以代码为准**，`tests/test_state_machine.py`
 保证代码自洽。
 
-## 与架构文档的差异
+## 三个容易混淆的设计点
 
-架构文档列出 8 个状态的主链路。实际落地补了 2 个失败态——文档的核验「打回」与标注「退回」
-工作流隐含了它们，但没有命名：
+[架构文档](architecture.md)给出状态机全貌与展示层的六阶段映射；本文补的是各状态的语义、
+负责方与幂等要求。以下三点最容易读错：
 
-| 补充状态 | 原因 |
-|---|---|
-| `rejected` | 核验打回后 Episode 不可用，需要一个终态；否则打回的数据会卡在 `verification_pending` |
-| `failed` | 上传中断、MCAP 解析失败、算子报错都需要落点，且要与「人工判定不可用」区分开 |
+**两个失败态是分开的。** 主链路只描述顺利路径，失败要有落点：
 
-另一个文档未明确的点：**标注审核「退回」不是新状态**，而是回到 `annotation_pending` 重做，
-`Annotation.revision` 计数 +1。退回重做与核验打回语义不同，不要混用 `rejected`。
+| 状态 | 何时用 | 为什么不能合并 |
+|---|---|---|
+| `rejected` | 人工核验判定数据不可用 | 否则打回的数据会卡在 `verification_pending` |
+| `failed` | 上传中断、MCAP 解析失败、算子报错 | 系统故障要与「人工判定不可用」区分开 |
 
-此外新增了一个中间态 `annotation_processing`（送标处理）：质检通过后先过一个异步环节，
-不再直接进 `annotation_pending`。它与 `processing` 分开而不复用，因为两者的回调语义不同
-（一个「解析完等人看」，一个「送标完等人标」）。理由见
-[`openspec/changes/manual-workflow-progression/design.md`](../openspec/changes/manual-workflow-progression/design.md) 第 1 节。
-本阶段该环节不跑算子（同文档第 2 节）。
+**标注审核「退回」不是新状态**，而是回到 `annotation_pending` 重做，`Annotation.revision`
+计数 +1。退回重做与核验打回语义不同，不要混用 `rejected`。
+
+**`annotation_processing` 是独立中间态。** 质检通过后先过一个异步送标环节，不直接进
+`annotation_pending`。它与 `processing` 分开而不复用，因为两者回调语义不同（一个「解析完
+等人看」，一个「送标完等人标」）。理由见
+[归档的 design.md](../openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md)
+第 1 节。本阶段该环节不跑算子（同文档第 2 节）。
 
 ## 状态流转图
 

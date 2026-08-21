@@ -54,7 +54,7 @@ async def ensure_demo_users(
         ),
         # 质检、标注、审核三个环节共用这一个角色 —— 端点要求已收敛为 ANNOTATOR。
         # 代价是审核与被审核同人（四眼原则失效），见
-        # openspec/changes/manual-workflow-progression/design.md 第 3 节。
+        # openspec/changes/archive/2026-08-21-manual-workflow-progression/design.md 第 3 节。
         UserRow(
             user_id=str(uuid.uuid4()),
             username="annotator",

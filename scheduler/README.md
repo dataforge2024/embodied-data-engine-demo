@@ -69,7 +69,7 @@
 ## Celery 在哪一层
 
 **只管执行，不管收发领域事件。** Platform 用 aio-pika 发领域事件，薄消费层校验通过后
-`task.delay()`。理由见 `openspec/changes/scheduler-celery-rabbitmq/design.md` 第 1 节，
+`task.delay()`。理由见 `openspec/changes/archive/2026-08-19-scheduler-celery-rabbitmq/design.md` 第 1 节，
 简版是三条：Platform 不能是 Celery 客户端（破依赖铁律）、契约的队列名是 KEDA 的权威来源、
 Celery protocol v2 的消息体与领域事件信封不兼容。
 

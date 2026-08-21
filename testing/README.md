@@ -1,6 +1,6 @@
 # robotdatahub-testing
 
-横向质量保障。pytest + Locust（Playwright 待前端实装后接入）。
+横向质量保障。当前只依赖 pytest —— Locust 压测与 Playwright 浏览器测试都还只有占位，未列入依赖。
 
 ## 我依赖 contract 的什么
 
@@ -46,7 +46,8 @@ in-process 驱动（不起 uvicorn），因此能在 CI 跑：
 
 ### `load/` — 压测
 
-Locust 场景。本阶段只有骨架，需要真实 Platform 实例才有意义。
+Locust 场景（`load/locustfile.py`）。**locust 尚未列入依赖**，跑之前要先装；
+且需要真实 Platform 实例才有意义。
 
 ## 运行
 

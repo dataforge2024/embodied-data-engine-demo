@@ -6,17 +6,20 @@
 
 ## 目录 ↔ 仓库映射
 
-| 目录 | 未来仓库 | 技术栈 | 状态 |
+| 目录 | 未来仓库 | 技术栈 | 代码量 |
 |---|---|---|---|
-| `contract/` | `robotdatahub-contract` | Python 3.12 (pydantic v2) | **写实** |
-| `platform/` | `robotdatahub-platform` | FastAPI + PG / React 18 + AntD 5 | 骨架 |
-| `scheduler/` | `robotdatahub-scheduler` | Celery + RabbitMQ + K8s/KEDA | 骨架 |
-| `agent/` | `robotdatahub-agent` | Python 3.12 + WebSocket + MinIO SDK | 骨架 |
-| `algo/` | `robotdatahub-algo` | PyTorch + K8s Job | 骨架 |
-| `tool/` | `robotdatahub-tool` | React 18 + TypeScript | 骨架 |
-| `testing/` | `robotdatahub-testing` | pytest + Playwright + Locust | 骨架 |
+| `contract/` | `robotdatahub-contract` | Python 3.12 (pydantic v2) | 4.5k |
+| `platform/` | `robotdatahub-platform` | FastAPI + PG / React 18 + AntD 5 | 10.1k |
+| `scheduler/` | `robotdatahub-scheduler` | Celery + RabbitMQ + K8s/KEDA | 2.0k |
+| `agent/` | `robotdatahub-agent` | Python 3.12 + WebSocket + MinIO SDK | 4.6k |
+| `algo/` | `robotdatahub-algo` | Python（计划 PyTorch）+ K8s Job | 0.6k |
+| `tool/` | `robotdatahub-tool` | React 18 + TypeScript | 1.6k |
+| `testing/` | `robotdatahub-testing` | pytest（压测/E2E 框架待接入） | 1.4k |
 
-「骨架」= 目录树 + 依赖清单 + 带完整类型签名的 stub（`raise NotImplementedError`）。业务逻辑未实现。
+业务逻辑**已实装**，八条交互可端到端跑通（`make demo`）。仍为模拟的只有交互⑦：
+`scheduler/k8s/job_builder.py` 的 manifest 构造真实且有测试，但不提交给真集群。
+
+文档：[架构](contract/docs/architecture.md) · [交互](contract/docs/interactions.md) · [部署](contract/docs/deployment.md)
 
 ## 依赖铁律
 
@@ -44,9 +47,9 @@ robotdatahub-contract = { path = "../contract", editable = true }
 | ① | Agent → Platform | WebSocket 长连接（心跳、任务推送、状态同步） | `agent/src/agent/ws/client.py` ↔ `platform/app/ws/manager.py` |
 | ② | Agent → MinIO | 分片上传 MCAP（断点续传） | `agent/src/agent/uploader/chunked.py` |
 | ③ | Agent → Platform | 上传完成 HTTP 回调 | `platform/app/api/routes/callbacks.py::upload_complete` |
-| ④ | Tool ↔ Platform | HTTP REST（核验、标注） | `tool/src/api/client.ts` ↔ `platform/app/api/routes/{verification,annotation}.py` |
+| ④ | Tool ↔ Platform | HTTP REST（核验、标注、审核） | `tool/src/api/client.ts` ↔ `platform/app/api/routes/review.py` |
 | ⑤ | Platform → RabbitMQ | 发布事件 | `platform/app/services/event_publisher.py` |
-| ⑥ | RabbitMQ → Scheduler | 消费事件触发流水线 | `scheduler/src/scheduler/consumers/rabbit.py` |
+| ⑥ | 队列 → Scheduler | 消费事件触发流水线 | `scheduler/src/scheduler/consumers/queue.py`（file）、`rabbit.py`（真 broker） |
 | ⑦ | Scheduler → K8s | 创建 Job 运行 Algo 算子 | `scheduler/src/scheduler/k8s/job_builder.py` |
 | ⑧ | Scheduler → Platform | 结果 HTTP 回调 | `platform/app/api/routes/callbacks.py::algo_result` |
 

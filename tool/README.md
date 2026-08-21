@@ -62,6 +62,6 @@
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:5174，API 代理到 127.0.0.1:8000
+pnpm dev          # http://localhost:5178，API 代理到 127.0.0.1:8000
 pnpm typecheck
 ```
