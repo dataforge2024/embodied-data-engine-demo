@@ -16,6 +16,7 @@ from rdh_contract.events import (
     EVENT_MODELS,
     EVENT_REGISTRY,
     AnnotationApproved,
+    AnnotationProcessingRequested,
     DatasetBuildRequested,
     EpisodeRejected,
     EpisodeUploaded,
@@ -205,12 +206,13 @@ class TestDispatch:
 class TestPayloadModelsMatchRegistry:
     """注册表声明的模型名与实际类一致 —— 删事件后剩下的正是这四个。"""
 
-    def test_registry_models_are_the_four_live_events(self) -> None:
-        """algo.completed / algo.failed 删掉后，注册表只剩这四个模型。"""
+    def test_registry_models_are_the_five_live_events(self) -> None:
+        """algo.completed / algo.failed 删掉后，注册表只剩这五个模型。"""
         assert set(EVENT_MODELS.values()) == {
             EpisodeUploaded,
             EpisodeRejected,
             AnnotationApproved,
+            AnnotationProcessingRequested,
             DatasetBuildRequested,
         }
 

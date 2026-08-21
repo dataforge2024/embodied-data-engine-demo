@@ -1,0 +1,43 @@
+/* 全局令牌与 reset。与 platform/web/src/App.css 保持同一套变量 ——
+   两个应用各存一份而不是共享包，原型阶段改主题色时手动同步即可。 */
+
+:root {
+  --surface-0: #05070c;
+  --surface-1: #0a0d12;
+  --surface-2: #0f131c;
+  --surface-3: #161d2b;
+  --surface-4: #1e2636;
+  --accent: #38bdf8;
+  --accent-dim: #0e7490;
+  --danger: #ef4444;
+  --danger-dim: #7f1d1d;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: #1e293b;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--surface-0);
+  color: var(--text-primary);
+  line-height: 1.6;
+}

@@ -1,0 +1,90 @@
+/* 多视角同步回放。变量在 index.css 里定义。 */
+
+.multi-view-player {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.viewport-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.viewport-grid figure {
+  margin: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.viewport-grid video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-0);
+  object-fit: contain;
+}
+
+.viewport-grid figcaption {
+  padding: 6px var(--spacing-sm);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-family: "SF Mono", "Monaco", "Consolas", monospace;
+}
+
+.viewport-grid .empty {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.transport button {
+  flex: 0 0 auto;
+  padding: 6px var(--spacing-md);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--surface-0);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.transport button:hover {
+  opacity: 0.9;
+}
+
+.transport input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.transport output {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-family: "SF Mono", "Monaco", "Consolas", monospace;
+  white-space: nowrap;
+}
+
+.transport select {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}

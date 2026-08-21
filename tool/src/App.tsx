@@ -12,10 +12,12 @@ import { ReviewPage } from "./pages/ReviewPage";
 import { VerifyPage } from "./pages/VerifyPage";
 import {
   contractVersion,
+  login,
   logout,
   restoreSession,
   setUnauthorizedHandler,
 } from "./api/client";
+import "./App.css";
 
 type Workspace = "verify" | "annotate" | "review";
 
@@ -36,6 +38,7 @@ export function App() {
   const [episodeId, setEpisodeId] = useState(deepLink.episodeId);
   // 初始值从 localStorage 恢复：刷新页面不该被登出
   const [user, setUser] = useState<User | null>(restoreSession);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   // 凭据过期时清掉用户状态回登录页。JWT 有 TTL（默认 1 小时），Tool 是浏览器
   // 应用，回登录页即可 —— 不像 Agent 那样需要无人值守自动重登。
@@ -44,34 +47,81 @@ export function App() {
     return () => setUnauthorizedHandler(null);
   }, []);
 
+  // 自动登录：无会话时用 demo 凭据，省去手动输入。
+  useEffect(() => {
+    if (user) return;
+    setLoggingIn(true);
+    let cancelled = false;
+    login("annotator", "demo-only-pass")
+      .then((token) => {
+        if (!cancelled) setUser(token.user);
+      })
+      .catch(() => {
+        if (!cancelled) setLoggingIn(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   if (!user) {
-    return <LoginPage onLoggedIn={setUser} />;
+    return loggingIn ? (
+      <p className="app-loading">标注工作台登录中…</p>
+    ) : (
+      <LoginPage onLoggedIn={setUser} />
+    );
   }
 
   return (
     <div className="app">
-      <nav>
-        <button type="button" onClick={() => setWorkspace("verify")}>
-          质检
-        </button>
-        <button type="button" onClick={() => setWorkspace("annotate")}>
-          标注
-        </button>
-        <button type="button" onClick={() => setWorkspace("review")}>
-          审核
-        </button>
+      <nav className="app-nav">
+        <div className="nav-items">
+          <button
+            type="button"
+            className={workspace === "verify" ? "active" : undefined}
+            onClick={() => setWorkspace("verify")}
+          >
+            质检
+          </button>
+          <button
+            type="button"
+            className={workspace === "annotate" ? "active" : undefined}
+            onClick={() => setWorkspace("annotate")}
+          >
+            标注
+          </button>
+          <button
+            type="button"
+            className={workspace === "review" ? "active" : undefined}
+            onClick={() => setWorkspace("review")}
+          >
+            审核
+          </button>
+        </div>
+        <div className="nav-spacer" />
         <span className="current-user">{user.display_name}</span>
-        <button type="button" onClick={logout}>
+        <button type="button" className="logout-btn" onClick={logout}>
           登出
         </button>
         <span className="version">契约 {contractVersion()}</span>
       </nav>
 
-      {workspace === "verify" && <VerifyPage verifiedBy={user.user_id} />}
-      {workspace === "review" && <ReviewPage reviewedBy={user.user_id} />}
+      {workspace === "verify" && (
+        <VerifyPage
+          verifiedBy={user.user_id}
+          episodeId={episodeId || undefined}
+        />
+      )}
+      {workspace === "review" && (
+        <ReviewPage
+          reviewedBy={user.user_id}
+          episodeId={episodeId || undefined}
+        />
+      )}
       {workspace === "annotate" && (
         <>
           <input
+            className="episode-id-input"
             value={episodeId}
             onChange={(event) => setEpisodeId(event.target.value)}
             placeholder="Episode ID"

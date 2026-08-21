@@ -11,6 +11,14 @@
     },
     {
       "consumer_queue": "tool",
+      "description": "核验通过，请求送标处理",
+      "max_retries": 3,
+      "model": "AnnotationProcessingRequested",
+      "routing_key": "annotation.processing_requested",
+      "schema_file": "annotation.processing_requested.json"
+    },
+    {
+      "consumer_queue": "tool",
       "description": "Lab 请求构建训练集",
       "max_retries": 3,
       "model": "DatasetBuildRequested",

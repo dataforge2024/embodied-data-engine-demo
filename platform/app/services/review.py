@@ -57,11 +57,8 @@ class ReviewService:
                 reason=result.reason or "核验未通过",
                 rejected_by=result.verified_by,
             )
-        from rdh_contract.schemas import TransitionActor
-
-        actor = TransitionActor(actor_type="user", user_id=result.verified_by)
-        return await self._lifecycle.transition(
-            result.episode_id, target=EpisodeStatus.ANNOTATION_PROCESSING, actor=actor
+        return await self._lifecycle.request_annotation_processing(
+            result.episode_id, verified_by=result.verified_by
         )
 
     async def submit_annotation(

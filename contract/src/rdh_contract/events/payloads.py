@@ -77,8 +77,21 @@ class DatasetBuildRequested(EventEnvelope):
     requested_by: str = Field(description="发起人 user_id")
 
 
+class AnnotationProcessingRequested(EventEnvelope):
+    """``annotation.processing_requested`` —— 质检通过，请求送标处理。
+
+    发布方：Platform（质检通过、状态进 ``annotation_processing`` 后）。
+    消费方：Scheduler tool-worker → 跑 ``EpisodePipeline.handle_annotation_processing``。
+    """
+
+    episode_id: str = Field(description="Episode ID")
+    task_id: str = Field(description="所属任务 ID")
+    verified_by: str = Field(description="核验人 user_id")
+
+
 __all__ = [
     "AnnotationApproved",
+    "AnnotationProcessingRequested",
     "DatasetBuildRequested",
     "EpisodeRejected",
     "EpisodeUploaded",

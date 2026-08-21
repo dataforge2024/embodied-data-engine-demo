@@ -12,10 +12,22 @@ import { useEffect, useState } from "react";
 import type { Annotation, Episode } from "@contract";
 import { MultiViewPlayer } from "../components/player/MultiViewPlayer";
 import { Timeline } from "../components/timeline/Timeline";
-import { fetchAnnotation, fetchReviewQueue, submitReview } from "../api/client";
+import {
+  fetchAnnotation,
+  fetchEpisode,
+  fetchReviewQueue,
+  submitReview,
+} from "../api/client";
 import { formatTimestamp } from "../components/timeline/segmentMath";
+import "./workspace.css";
 
-export function ReviewPage({ reviewedBy }: { readonly reviewedBy: string }) {
+export function ReviewPage({
+  reviewedBy,
+  episodeId,
+}: {
+  readonly reviewedBy: string;
+  readonly episodeId?: string;
+}) {
   const [queue, setQueue] = useState<Episode[]>([]);
   const [current, setCurrent] = useState<Episode | null>(null);
   const [annotation, setAnnotation] = useState<Annotation | null>(null);
@@ -32,7 +44,18 @@ export function ReviewPage({ reviewedBy }: { readonly reviewedBy: string }) {
       .catch((e: Error) => setError(e.message));
   };
 
-  useEffect(reload, []);
+  useEffect(() => {
+    if (episodeId) {
+      fetchEpisode(episodeId)
+        .then((ep) => {
+          setCurrent(ep);
+          setQueue([]);
+        })
+        .catch((e: Error) => setError(e.message));
+    } else {
+      reload();
+    }
+  }, [episodeId]);
 
   // 队列换条时拉对应的标注记录
   useEffect(() => {
@@ -105,7 +128,10 @@ export function ReviewPage({ reviewedBy }: { readonly reviewedBy: string }) {
           <ol className="segment-list">
             {segments.map((segment) => (
               <li key={segment.segment_id}>
-                <button type="button" onClick={() => setPositionMs(segment.start_ms)}>
+                <button
+                  type="button"
+                  onClick={() => setPositionMs(segment.start_ms)}
+                >
                   {formatTimestamp(segment.start_ms)} –{" "}
                   {formatTimestamp(segment.end_ms)}
                 </button>
@@ -129,10 +155,18 @@ export function ReviewPage({ reviewedBy }: { readonly reviewedBy: string }) {
           onChange={(event) => setReason(event.target.value)}
           placeholder="退回原因（退回时必填）"
         />
-        <button type="button" onClick={() => decide("approve")}>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => decide("approve")}
+        >
           通过并发布
         </button>
-        <button type="button" onClick={() => decide("reject")}>
+        <button
+          type="button"
+          className="danger"
+          onClick={() => decide("reject")}
+        >
           退回重做
         </button>
       </div>

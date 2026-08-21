@@ -14,7 +14,7 @@ from typing import Any
 
 from celery import Celery
 from rdh_contract.enums import JobType
-from rdh_contract.events import EVENT_REGISTRY, EpisodeUploaded
+from rdh_contract.events import EVENT_REGISTRY, AnnotationProcessingRequested, EpisodeUploaded
 
 from scheduler.config import Settings, get_settings
 
@@ -47,6 +47,9 @@ def build_celery_app(settings: Settings | None = None) -> Celery:
             "scheduler.notify_rejected": {"queue": f"celery.{JobType.NOTIFY.value}"},
             "scheduler.convert_annotation": {"queue": f"celery.{JobType.TOOL.value}"},
             "scheduler.build_dataset": {"queue": f"celery.{JobType.TOOL.value}"},
+            "scheduler.request_annotation_processing": {
+                "queue": f"celery.{JobType.TOOL.value}"
+            },
         },
     )
     return app
@@ -130,6 +133,30 @@ def convert_annotation(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @app.task(
+    name="scheduler.request_annotation_processing",
+    bind=True,
+    max_retries=_max_retries("annotation.processing_requested"),
+    retry_backoff=True,
+)
+def request_annotation_processing(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    """tool-worker：核验通过后跑送标处理，结束时回调 Platform 推进状态。
+
+    ``payload`` 是 ``AnnotationProcessingRequested`` 的 JSON 形式。失败与成功都由
+    ``EpisodePipeline.handle_annotation_processing`` 内部回调 Platform 上报，
+    这里只负责重试调度。
+    """
+    from scheduler.worker import build_pipeline
+
+    event = AnnotationProcessingRequested.model_validate(payload)
+    try:
+        succeeded = _run(build_pipeline().handle_annotation_processing(event.episode_id))
+    except Exception as exc:
+        logger.exception("送标处理失败 episode=%s", event.episode_id)
+        raise self.retry(exc=exc) from exc
+    return {"episode_id": event.episode_id, "succeeded": succeeded}
+
+
+@app.task(
     name="scheduler.build_dataset",
     bind=True,
     max_retries=_max_retries("dataset.build_requested"),
@@ -180,6 +207,7 @@ TASK_BY_ROUTING_KEY = {
     "episode.uploaded": ingest_episode,
     "episode.rejected": notify_rejected,
     "annotation.approved": convert_annotation,
+    "annotation.processing_requested": request_annotation_processing,
     "dataset.build_requested": build_dataset,
 }
 
@@ -192,4 +220,5 @@ __all__ = [
     "convert_annotation",
     "ingest_episode",
     "notify_rejected",
+    "request_annotation_processing",
 ]

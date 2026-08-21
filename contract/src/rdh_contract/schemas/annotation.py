@@ -49,7 +49,7 @@ class AnnotationSubmit(ContractModel):
     """
 
     episode_id: str = Field(description="被标注的 Episode ID")
-    segments: tuple[Segment, ...] = Field(min_length=1, description="编辑后的全量分段")
+    segments: tuple[Segment, ...] = Field(default=(), description="编辑后的全量分段")
     notes: str | None = Field(default=None, max_length=2000, description="标注备注")
 
     @model_validator(mode="after")

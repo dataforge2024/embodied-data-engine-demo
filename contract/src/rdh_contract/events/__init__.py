@@ -2,6 +2,7 @@
 
 from .payloads import (
     AnnotationApproved,
+    AnnotationProcessingRequested,
     DatasetBuildRequested,
     EpisodeRejected,
     EpisodeUploaded,
@@ -25,6 +26,7 @@ __all__ = [
     "EXCHANGE_DLX",
     "EXCHANGE_MAIN",
     "AnnotationApproved",
+    "AnnotationProcessingRequested",
     "DatasetBuildRequested",
     "EpisodeRejected",
     "EpisodeUploaded",

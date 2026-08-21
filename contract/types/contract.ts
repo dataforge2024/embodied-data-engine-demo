@@ -176,12 +176,14 @@ export function isTerminal(status: EpisodeStatus): boolean {
 /** RabbitMQ 事件 routing key。 */
 export type EventRoutingKey =
   | "annotation.approved"
+  | "annotation.processing_requested"
   | "dataset.build_requested"
   | "episode.rejected"
   | "episode.uploaded";
 
 export const EVENT_ROUTING_KEYS: readonly EventRoutingKey[] = [
   "annotation.approved",
+  "annotation.processing_requested",
   "dataset.build_requested",
   "episode.rejected",
   "episode.uploaded",
@@ -410,7 +412,7 @@ export interface AnnotationSubmit {
   /** 被标注的 Episode ID */
   episode_id: string;
   /** 编辑后的全量分段 */
-  segments: Segment[];
+  segments?: Segment[];
   /** 标注备注 */
   notes?: string | null;
 }

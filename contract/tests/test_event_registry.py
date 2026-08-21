@@ -140,6 +140,10 @@ class TestQueueRouting:
         """训练集构建由 tool-worker 消费。"""
         assert "dataset.build_requested" in routing_keys_for_queue(JobType.TOOL)
 
+    def test_annotation_processing_requested_handled_by_tool_worker(self) -> None:
+        """核验通过后的送标处理请求由 tool-worker 消费。"""
+        assert "annotation.processing_requested" in routing_keys_for_queue(JobType.TOOL)
+
 
 @pytest.mark.unit
 class TestExchangesAndRetries:

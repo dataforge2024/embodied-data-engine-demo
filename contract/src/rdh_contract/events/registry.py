@@ -10,6 +10,7 @@ from ..enums import JobType
 from ..schemas.base import ContractModel
 from .payloads import (
     AnnotationApproved,
+    AnnotationProcessingRequested,
     DatasetBuildRequested,
     EpisodeRejected,
     EpisodeUploaded,
@@ -49,6 +50,7 @@ EVENT_MODELS: Mapping[str, type[ContractModel]] = {
     "episode.uploaded": EpisodeUploaded,
     "episode.rejected": EpisodeRejected,
     "annotation.approved": AnnotationApproved,
+    "annotation.processing_requested": AnnotationProcessingRequested,
     "dataset.build_requested": DatasetBuildRequested,
 }
 
@@ -74,6 +76,13 @@ EVENT_REGISTRY: Mapping[str, EventSpec] = {
         exchange=EXCHANGE_MAIN,
         consumer_queue=JobType.TOOL,
         description="标注审核通过，触发格式转换与训练集并入",
+    ),
+    "annotation.processing_requested": EventSpec(
+        routing_key="annotation.processing_requested",
+        model_name="AnnotationProcessingRequested",
+        exchange=EXCHANGE_MAIN,
+        consumer_queue=JobType.TOOL,
+        description="核验通过，请求送标处理",
     ),
     "dataset.build_requested": EventSpec(
         routing_key="dataset.build_requested",

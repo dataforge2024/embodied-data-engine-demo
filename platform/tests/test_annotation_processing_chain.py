@@ -142,6 +142,9 @@ class TestVerificationEntersProcessing:
 
         assert outcome.changed
         assert outcome.episode.status is EpisodeStatus.ANNOTATION_PROCESSING
+        assert [key for key, _ in h.publisher.published] == [
+            "annotation.processing_requested"
+        ]
 
     async def test_reject_still_terminal(self, session: AsyncSession) -> None:
         """打回仍是 rejected 终态，没被送标环节带偏。"""

@@ -5,10 +5,11 @@
  * 而不是让某一路 video 当基准 —— 否则该路卡顿会把其余路带偏。
  */
 
-import { useEffect, useRef, useState } from 'react';
-import type { SensorStream } from '@contract';
-import { SyncController, type SyncState } from './SyncController';
-import { formatTimestamp } from '../timeline/segmentMath';
+import { useEffect, useRef, useState } from "react";
+import type { SensorStream } from "@contract";
+import { SyncController, type SyncState } from "./SyncController";
+import { formatTimestamp } from "../timeline/segmentMath";
+import "./MultiViewPlayer.css";
 
 interface Props {
   readonly streams: readonly SensorStream[];
@@ -16,11 +17,19 @@ interface Props {
   readonly onPositionChange?: (positionMs: number) => void;
 }
 
-export function MultiViewPlayer({ streams, durationMs, onPositionChange }: Props) {
+export function MultiViewPlayer({
+  streams,
+  durationMs,
+  onPositionChange,
+}: Props) {
   const controllerRef = useRef<SyncController | null>(null);
-  const [state, setState] = useState<SyncState>({ positionMs: 0, playing: false, rate: 1 });
+  const [state, setState] = useState<SyncState>({
+    positionMs: 0,
+    playing: false,
+    rate: 1,
+  });
 
-  const cameras = streams.filter((s) => s.kind === 'camera');
+  const cameras = streams.filter((s) => s.kind === "camera");
 
   useEffect(() => {
     const controller = new SyncController();
@@ -37,15 +46,16 @@ export function MultiViewPlayer({ streams, durationMs, onPositionChange }: Props
     };
   }, [onPositionChange]);
 
-  const registerVideo = (stream: SensorStream) => (element: HTMLVideoElement | null) => {
-    if (element && controllerRef.current) {
-      controllerRef.current.attach({
-        topic: stream.topic,
-        startOffsetMs: stream.start_offset_ms ?? 0,
-        element,
-      });
-    }
-  };
+  const registerVideo =
+    (stream: SensorStream) => (element: HTMLVideoElement | null) => {
+      if (element && controllerRef.current) {
+        controllerRef.current.attach({
+          topic: stream.topic,
+          startOffsetMs: stream.start_offset_ms ?? 0,
+          element,
+        });
+      }
+    };
 
   const controller = controllerRef.current;
 
@@ -63,7 +73,7 @@ export function MultiViewPlayer({ streams, durationMs, onPositionChange }: Props
             />
             <figcaption>
               {stream.topic}
-              {stream.frequency_hz ? ` · ${stream.frequency_hz}Hz` : ''}
+              {stream.frequency_hz ? ` · ${stream.frequency_hz}Hz` : ""}
             </figcaption>
           </figure>
         ))}
@@ -73,9 +83,11 @@ export function MultiViewPlayer({ streams, durationMs, onPositionChange }: Props
       <div className="transport">
         <button
           type="button"
-          onClick={() => (state.playing ? controller?.pause() : controller?.play())}
+          onClick={() =>
+            state.playing ? controller?.pause() : controller?.play()
+          }
         >
-          {state.playing ? '暂停' : '播放'}
+          {state.playing ? "暂停" : "播放"}
         </button>
         <input
           type="range"

@@ -10,6 +10,7 @@
 import { useState } from "react";
 import type { User } from "@contract";
 import { login } from "../api/client";
+import "./LoginPage.css";
 
 interface Props {
   readonly onLoggedIn: (user: User) => void;

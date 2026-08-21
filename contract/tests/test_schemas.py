@@ -146,10 +146,9 @@ class TestAnnotationSubmit:
                 segments=(make_segment("b", 100, 200), make_segment("a", 0, 150)),
             )
 
-    def test_rejects_empty_segments(self) -> None:
-        """空标注无意义。"""
-        with pytest.raises(ValidationError):
-            AnnotationSubmit(episode_id="e1", segments=())
+    def test_accepts_empty_segments(self) -> None:
+        """允许无分段提交（比如整条 Episode 无有效动作）。"""
+        assert AnnotationSubmit(episode_id="e1", segments=()).segments == ()
 
     def test_accepts_single_segment(self) -> None:
         """单个分段合法。"""
