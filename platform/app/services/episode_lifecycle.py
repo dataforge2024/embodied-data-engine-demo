@@ -16,7 +16,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from rdh_contract.enums import EpisodeStatus
-from rdh_contract.events import AnnotationApproved, EpisodeRejected, EpisodeUploaded
+from rdh_contract.events import (
+    AnnotationApproved,
+    AnnotationProcessingRequested,
+    EpisodeRejected,
+    EpisodeUploaded,
+)
 from rdh_contract.schemas import Episode, TransitionActor
 from rdh_contract.state_machine import InvalidTransitionError, assert_transition, is_terminal
 
@@ -174,6 +179,33 @@ class EpisodeLifecycleService:
             actor=actor,
             reject_reason=error_message or "送标处理失败",
         )
+
+    async def request_annotation_processing(
+        self, episode_id: str, *, verified_by: str
+    ) -> TransitionOutcome:
+        """核验通过 → ``annotation_processing``，并发布 ``annotation.processing_requested``。
+
+        事件驱动 Scheduler 跑送标处理（``EpisodePipeline.handle_annotation_processing``），
+        完成后经 ``finish_annotation_processing`` 回调推进到 ``annotation_pending``。
+        """
+        actor = TransitionActor(actor_type="user", user_id=verified_by)
+        outcome = await self.transition(
+            episode_id, target=EpisodeStatus.ANNOTATION_PROCESSING, actor=actor
+        )
+        if not outcome.changed:
+            return outcome
+
+        event_id = await self._publisher.publish(
+            "annotation.processing_requested",
+            AnnotationProcessingRequested(
+                event_id=str(uuid.uuid4()),
+                occurred_at=datetime.now(UTC),
+                episode_id=episode_id,
+                task_id=outcome.episode.task_id,
+                verified_by=verified_by,
+            ),
+        )
+        return TransitionOutcome(episode=outcome.episode, changed=True, published_event_id=event_id)
 
     async def reject(
         self, episode_id: str, *, reason: str, rejected_by: str, task_id: str | None = None

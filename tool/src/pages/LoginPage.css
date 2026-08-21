@@ -1,0 +1,78 @@
+/* 登录页。对齐 platform/web 的 LoginPage.css。 */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--surface-0) 0%, var(--surface-2) 100%);
+  padding: var(--spacing-xl);
+}
+
+.login-page form {
+  width: 100%;
+  max-width: 420px;
+  display: grid;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.login-page h1 {
+  margin: 0 0 var(--spacing-lg);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.login-page label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.login-page input {
+  padding: 10px var(--spacing-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.login-page input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-page button {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--surface-0);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.login-page button:hover {
+  opacity: 0.9;
+}
+
+.login-page button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-page [role="alert"] {
+  margin-top: var(--spacing-sm);
+  color: #fca5a5;
+  font-size: 0.875rem;
+  text-align: center;
+}

@@ -1,0 +1,361 @@
+/* 质检 / 标注 / 审核三个工作台共用样式。变量在 index.css 里定义。 */
+
+.verify-page,
+.review-page,
+.annotate-page {
+  padding: var(--spacing-xl);
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.verify-page h1,
+.review-page h1,
+.annotate-page h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.verify-page > p,
+.review-page > p,
+.annotate-page > p {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.verify-page > p[role="alert"],
+.review-page > p[role="alert"],
+.annotate-page > p[role="alert"] {
+  color: #fca5a5;
+}
+
+/* ---- 质检结果卡片 ---- */
+
+.quality-report {
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.quality-report h2 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.quality-report > p {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.quality-report > p.passed {
+  background: color-mix(in srgb, #10b981 20%, transparent);
+  color: #6ee7b7;
+}
+
+.quality-report > p.failed {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: #fca5a5;
+}
+
+.quality-report ul {
+  margin: var(--spacing-sm) 0 0;
+  padding-left: var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* ---- 操作区（打回/通过） ---- */
+
+.actions {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.actions textarea {
+  flex: 1;
+  min-height: 40px;
+  padding: 10px var(--spacing-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.actions textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.verify-page button,
+.review-page button,
+.annotate-page button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.verify-page button:hover,
+.review-page button:hover,
+.annotate-page button:hover {
+  background: var(--surface-3);
+}
+
+.verify-page button:disabled,
+.review-page button:disabled,
+.annotate-page button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.verify-page button.primary,
+.review-page button.primary,
+.annotate-page button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-0);
+}
+
+.verify-page button.primary:hover,
+.review-page button.primary:hover,
+.annotate-page button.primary:hover {
+  opacity: 0.9;
+}
+
+.verify-page button.danger,
+.review-page button.danger,
+.annotate-page button.danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: #fca5a5;
+}
+
+.verify-page button.danger:hover,
+.review-page button.danger:hover,
+.annotate-page button.danger:hover {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+}
+
+/* ---- 标注审核内容（ReviewPage） ---- */
+
+.annotation-review {
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.annotation-review h2 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.annotation-review h3 {
+  margin: var(--spacing-md) 0 var(--spacing-xs);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.revision {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.annotated-by {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.segment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.segment-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+}
+
+.segment-list li button {
+  padding: 2px 8px;
+  background: var(--surface-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-family: "SF Mono", "Monaco", "Consolas", monospace;
+  cursor: pointer;
+}
+
+.segment-list li button:hover {
+  background: var(--surface-4);
+}
+
+.segment-list li strong {
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.segment-list li p {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.segment-list .source {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.notes {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+
+/* ---- 标注表单（AnnotatePage） ---- */
+
+.segment-form {
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.segment-form legend {
+  padding-bottom: var(--spacing-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.segment-form label {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.segment-form input,
+.segment-form textarea,
+.annotate-page > label + textarea {
+  padding: 10px var(--spacing-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-family: inherit;
+}
+
+.segment-form input:focus,
+.segment-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.segment-source {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.hint {
+  padding: var(--spacing-md);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.annotate-page > label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.annotate-page > textarea {
+  padding: 10px var(--spacing-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.annotate-page > textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.problems {
+  margin: 0;
+  padding: var(--spacing-md);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--surface-3));
+  border-radius: var(--radius-md);
+  color: #fca5a5;
+  font-size: 0.875rem;
+  list-style-position: inside;
+}
+
+/* Episode ID 输入框（App.tsx 里标注工作台的入口） */
+.episode-id-input {
+  margin: var(--spacing-md) var(--spacing-xl) 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  width: calc(100% - var(--spacing-xl) * 2);
+  max-width: 1200px;
+}
+
+.episode-id-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}

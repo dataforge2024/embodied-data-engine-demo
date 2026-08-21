@@ -4,9 +4,7 @@
  * Platform 与 Tool 是两个独立前端应用，靠 URL 串联而不是共享代码 —— 它们可能由不同的人
  * 部署在不同域名下，所以基址走环境变量 `VITE_TOOL_BASE_URL`，不写死端口。
  *
- * **当前 Tool 还没读这些查询参数**（它的工作台切换是组件内 state，标注页要手输 Episode
- * ID）。这里先按约定把 `episode` 与 `stage` 带上：Tool 补上读取后，Platform 侧一行不用改
- * 就能深链过去。在那之前点过去只会落在 Tool 的默认工作台（核验）。
+ * Tool 已支持深链参数：`episode` 决定打开哪条记录，`stage` 决定落在哪个工作台。
  */
 
 import type { EpisodeStatus } from "@contract";
@@ -40,7 +38,7 @@ export function toolStageOf(status: EpisodeStatus): ToolStage | null {
 /** Tool 的基址。未配置时退回本地开发端口。 */
 export function toolBaseUrl(): string {
   const configured = import.meta.env.VITE_TOOL_BASE_URL;
-  return (configured ?? "http://localhost:5174").replace(/\/$/, "");
+  return (configured ?? "http://localhost:5178").replace(/\/$/, "");
 }
 
 /** 拼出打开某个 Episode 某个环节的 URL。 */

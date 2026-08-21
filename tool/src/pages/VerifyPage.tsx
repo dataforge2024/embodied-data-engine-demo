@@ -4,15 +4,26 @@
  * 核验只判断「数据本身能不能用」，不做标注。打回必须填原因 —— 后端也会校验。
  */
 
-import { useEffect, useState } from 'react';
-import type { Episode } from '@contract';
-import { MultiViewPlayer } from '../components/player/MultiViewPlayer';
-import { fetchVerificationQueue, submitVerification } from '../api/client';
+import { useEffect, useState } from "react";
+import type { Episode } from "@contract";
+import { MultiViewPlayer } from "../components/player/MultiViewPlayer";
+import {
+  fetchEpisode,
+  fetchVerificationQueue,
+  submitVerification,
+} from "../api/client";
+import "./workspace.css";
 
-export function VerifyPage({ verifiedBy }: { readonly verifiedBy: string }) {
+export function VerifyPage({
+  verifiedBy,
+  episodeId,
+}: {
+  readonly verifiedBy: string;
+  readonly episodeId?: string;
+}) {
   const [queue, setQueue] = useState<Episode[]>([]);
   const [current, setCurrent] = useState<Episode | null>(null);
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const reload = () => {
@@ -24,24 +35,35 @@ export function VerifyPage({ verifiedBy }: { readonly verifiedBy: string }) {
       .catch((e: Error) => setError(e.message));
   };
 
-  useEffect(reload, []);
+  useEffect(() => {
+    if (episodeId) {
+      fetchEpisode(episodeId)
+        .then((ep) => {
+          setCurrent(ep);
+          setQueue([]);
+        })
+        .catch((e: Error) => setError(e.message));
+    } else {
+      reload();
+    }
+  }, [episodeId]);
 
-  const decide = async (decision: 'approve' | 'reject') => {
+  const decide = async (decision: "approve" | "reject") => {
     if (!current) return;
-    if (decision === 'reject' && !reason.trim()) {
-      setError('打回必须填写原因');
+    if (decision === "reject" && !reason.trim()) {
+      setError("打回必须填写原因");
       return;
     }
     try {
       await submitVerification({
         episode_id: current.episode_id,
         decision,
-        reason: decision === 'reject' ? reason : null,
+        reason: decision === "reject" ? reason : null,
         checked_topics: (current.streams ?? []).map((s) => s.topic),
         verified_by: verifiedBy,
         verified_at: new Date().toISOString(),
       });
-      setReason('');
+      setReason("");
       setError(null);
       reload();
     } catch (e) {
@@ -62,7 +84,9 @@ export function VerifyPage({ verifiedBy }: { readonly verifiedBy: string }) {
       {current.quality && (
         <aside className="quality-report">
           <h2>质检结果</h2>
-          <p>{current.quality.passed ? '通过' : '未通过'}</p>
+          <p className={current.quality.passed ? "passed" : "failed"}>
+            {current.quality.passed ? "通过" : "未通过"}
+          </p>
           <ul>
             {(current.quality.issues ?? []).map((issue) => (
               <li key={issue}>{issue}</li>
@@ -76,10 +100,18 @@ export function VerifyPage({ verifiedBy }: { readonly verifiedBy: string }) {
           onChange={(event) => setReason(event.target.value)}
           placeholder="打回原因（打回时必填）"
         />
-        <button type="button" onClick={() => decide('approve')}>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => decide("approve")}
+        >
           通过
         </button>
-        <button type="button" onClick={() => decide('reject')}>
+        <button
+          type="button"
+          className="danger"
+          onClick={() => decide("reject")}
+        >
           打回
         </button>
       </div>

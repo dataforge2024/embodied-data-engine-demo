@@ -13,6 +13,7 @@ import { MultiViewPlayer } from "../components/player/MultiViewPlayer";
 import { Timeline } from "../components/timeline/Timeline";
 import { useSegmentEditor } from "../hooks/useSegmentEditor";
 import { fetchEpisode, submitAnnotation } from "../api/client";
+import "./workspace.css";
 
 interface Props {
   readonly episodeId: string;
@@ -54,13 +55,7 @@ export function AnnotatePage({ episodeId, onSubmitted }: Props) {
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [
-    editor.segments,
-    editor.validation,
-    episodeId,
-    notes,
-    onSubmitted,
-  ]);
+  }, [editor.segments, editor.validation, episodeId, notes, onSubmitted]);
 
   if (error && !episode) return <p role="alert">加载失败：{error}</p>;
   if (!episode) return <p>加载中…</p>;
@@ -144,7 +139,7 @@ export function AnnotatePage({ episodeId, onSubmitted }: Props) {
         >
           在播放头切分
         </button>
-        <button type="button" onClick={handleSubmit}>
+        <button type="button" className="primary" onClick={handleSubmit}>
           提交标注
         </button>
       </div>

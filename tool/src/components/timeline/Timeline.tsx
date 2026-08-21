@@ -4,8 +4,8 @@
  * 编辑逻辑全在 segmentMath.ts（纯函数），本组件只负责渲染与交互事件。
  */
 
-import { useMemo, useState } from 'react';
-import type { Segment } from '@contract';
+import { useMemo, useState } from "react";
+import type { Segment } from "@contract";
 import {
   clampZoom,
   formatTimestamp,
@@ -13,7 +13,8 @@ import {
   pxToMs,
   sortSegments,
   validateSegments,
-} from './segmentMath';
+} from "./segmentMath";
+import "./Timeline.css";
 
 interface Props {
   readonly segments: readonly Segment[];
@@ -22,7 +23,11 @@ interface Props {
   readonly selectedId?: string | null;
   readonly onSeek?: (ms: number) => void;
   readonly onSelect?: (segmentId: string) => void;
-  readonly onResize?: (segmentId: string, edge: 'start' | 'end', positionMs: number) => void;
+  readonly onResize?: (
+    segmentId: string,
+    edge: "start" | "end",
+    positionMs: number,
+  ) => void;
 }
 
 const DEFAULT_PX_PER_SECOND = 60;
@@ -39,7 +44,10 @@ export function Timeline({
 }: Props) {
   const [pxPerSecond, setPxPerSecond] = useState(DEFAULT_PX_PER_SECOND);
   const ordered = useMemo(() => sortSegments(segments), [segments]);
-  const validation = useMemo(() => validateSegments(segments, durationMs), [segments, durationMs]);
+  const validation = useMemo(
+    () => validateSegments(segments, durationMs),
+    [segments, durationMs],
+  );
 
   const trackWidth = msToPx(durationMs, pxPerSecond);
   const tickCount = Math.floor(durationMs / TICK_INTERVAL_MS) + 1;
@@ -59,7 +67,9 @@ export function Timeline({
             min={10}
             max={400}
             value={pxPerSecond}
-            onChange={(event) => setPxPerSecond(clampZoom(Number(event.target.value)))}
+            onChange={(event) =>
+              setPxPerSecond(clampZoom(Number(event.target.value)))
+            }
           />
         </label>
         <span>{ordered.length} 个分段</span>
@@ -71,7 +81,11 @@ export function Timeline({
       </header>
 
       <div className="timeline-scroll">
-        <div className="timeline-track" style={{ width: trackWidth }} onClick={handleTrackClick}>
+        <div
+          className="timeline-track"
+          style={{ width: trackWidth }}
+          onClick={handleTrackClick}
+        >
           <div className="timeline-ruler">
             {Array.from({ length: tickCount }, (_, index) => (
               <span
@@ -87,8 +101,8 @@ export function Timeline({
           {ordered.map((segment) => (
             <div
               key={segment.segment_id}
-              className={`segment-bar${segment.segment_id === selectedId ? ' selected' : ''}${
-                segment.source ? ' from-algo' : ''
+              className={`segment-bar${segment.segment_id === selectedId ? " selected" : ""}${
+                segment.source ? " from-algo" : ""
               }`}
               style={{
                 left: msToPx(segment.start_ms, pxPerSecond),
@@ -100,29 +114,32 @@ export function Timeline({
               }}
               title={
                 segment.source
-                  ? `${segment.action_label ?? '未标注'}（${segment.source} 预标注）`
-                  : (segment.action_label ?? '未标注')
+                  ? `${segment.action_label ?? "未标注"}（${segment.source} 预标注）`
+                  : (segment.action_label ?? "未标注")
               }
             >
               <span
                 className="handle start"
                 onMouseDown={(event) => {
                   event.stopPropagation();
-                  onResize?.(segment.segment_id, 'start', segment.start_ms);
+                  onResize?.(segment.segment_id, "start", segment.start_ms);
                 }}
               />
-              <span className="label">{segment.action_label ?? '未标注'}</span>
+              <span className="label">{segment.action_label ?? "未标注"}</span>
               <span
                 className="handle end"
                 onMouseDown={(event) => {
                   event.stopPropagation();
-                  onResize?.(segment.segment_id, 'end', segment.end_ms);
+                  onResize?.(segment.segment_id, "end", segment.end_ms);
                 }}
               />
             </div>
           ))}
 
-          <div className="playhead" style={{ left: msToPx(positionMs, pxPerSecond) }} />
+          <div
+            className="playhead"
+            style={{ left: msToPx(positionMs, pxPerSecond) }}
+          />
         </div>
       </div>
     </section>

@@ -14,6 +14,7 @@ from pathlib import Path
 from rdh_contract.enums import JobType
 from rdh_contract.events import (
     AnnotationApproved,
+    AnnotationProcessingRequested,
     DatasetBuildRequested,
     EpisodeRejected,
     EpisodeUploaded,
@@ -80,6 +81,10 @@ class Worker:
                 event.payload.episode_id,
                 event.payload.segment_count,
             )
+
+        elif isinstance(event.payload, AnnotationProcessingRequested):
+            # tool-worker：核验通过后跑送标处理，结束时回调 Platform 推进状态
+            await self._pipeline.handle_annotation_processing(event.payload.episode_id)
 
         elif isinstance(event.payload, EpisodeRejected):
             # notify-worker：通知采集人重采

@@ -1,0 +1,64 @@
+{
+  "$id": "https://robotdatahub.local/events/annotation.processing_requested.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "``annotation.processing_requested`` —— 质检通过，请求送标处理。\n\n发布方：Platform（质检通过、状态进 ``annotation_processing`` 后）。\n消费方：Scheduler tool-worker → 跑 ``EpisodePipeline.handle_annotation_processing``。",
+  "properties": {
+    "episode_id": {
+      "description": "Episode ID",
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "event_id": {
+      "description": "事件唯一 ID（UUID），消费方据此幂等去重",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "description": "事件发生时间（UTC）",
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "task_id": {
+      "description": "所属任务 ID",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "跨模块链路追踪 ID",
+      "title": "Trace Id"
+    },
+    "verified_by": {
+      "description": "核验人 user_id",
+      "title": "Verified By",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "occurred_at",
+    "episode_id",
+    "task_id",
+    "verified_by"
+  ],
+  "title": "AnnotationProcessingRequested",
+  "type": "object",
+  "x-contract": {
+    "consumer_queue": "tool",
+    "description": "核验通过，请求送标处理",
+    "exchange": "robotdatahub.events",
+    "max_retries": 3,
+    "routing_key": "annotation.processing_requested",
+    "version": "0.1.0"
+  }
+}

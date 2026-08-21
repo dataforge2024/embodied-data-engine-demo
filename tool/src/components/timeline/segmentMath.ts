@@ -5,7 +5,7 @@
  * 这些规则要与后端 `AnnotationSubmit` 的校验一致，独立出来才好测。
  */
 
-import type { Segment } from '@contract';
+import type { Segment } from "@contract";
 
 /** 分段最小时长，与后端保持一致的编辑下限。 */
 export const MIN_SEGMENT_MS = 100;
@@ -35,7 +35,7 @@ export function formatTimestamp(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   const millis = Math.floor(ms % 1000);
-  return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 }
 
 /** 按开始时间排序。 */
@@ -44,7 +44,9 @@ export function sortSegments(segments: readonly Segment[]): Segment[] {
 }
 
 /** 找出重叠的分段对。后端会拒绝重叠提交，前端提前拦住。 */
-export function findOverlaps(segments: readonly Segment[]): Array<[Segment, Segment]> {
+export function findOverlaps(
+  segments: readonly Segment[],
+): Array<[Segment, Segment]> {
   const ordered = sortSegments(segments);
   const overlaps: Array<[Segment, Segment]> = [];
   for (let i = 1; i < ordered.length; i += 1) {
@@ -63,10 +65,6 @@ export function validateSegments(
   durationMs: number,
 ): { valid: boolean; problems: string[] } {
   const problems: string[] = [];
-
-  if (segments.length === 0) {
-    problems.push('至少需要一个分段');
-  }
 
   segments.forEach((segment) => {
     if (segment.end_ms <= segment.start_ms) {
@@ -104,7 +102,10 @@ export function splitSegment(
 ): Segment[] {
   const target = segments.find((s) => s.segment_id === segmentId);
   if (!target) return [...segments];
-  if (atMs - target.start_ms < MIN_SEGMENT_MS || target.end_ms - atMs < MIN_SEGMENT_MS) {
+  if (
+    atMs - target.start_ms < MIN_SEGMENT_MS ||
+    target.end_ms - atMs < MIN_SEGMENT_MS
+  ) {
     return [...segments];
   }
 
@@ -117,7 +118,9 @@ export function splitSegment(
     source: null,
     confidence: null,
   };
-  return sortSegments(segments.flatMap((s) => (s.segment_id === segmentId ? [left, right] : [s])));
+  return sortSegments(
+    segments.flatMap((s) => (s.segment_id === segmentId ? [left, right] : [s])),
+  );
 }
 
 /** 合并两个相邻分段。不相邻则原样返回。 */
@@ -130,7 +133,8 @@ export function mergeSegments(
   const second = segments.find((s) => s.segment_id === secondId);
   if (!first || !second) return [...segments];
 
-  const [earlier, later] = first.start_ms <= second.start_ms ? [first, second] : [second, first];
+  const [earlier, later] =
+    first.start_ms <= second.start_ms ? [first, second] : [second, first];
   const merged: Segment = {
     ...earlier,
     end_ms: later.end_ms,
@@ -138,7 +142,9 @@ export function mergeSegments(
     confidence: null,
   };
   return sortSegments([
-    ...segments.filter((s) => s.segment_id !== firstId && s.segment_id !== secondId),
+    ...segments.filter(
+      (s) => s.segment_id !== firstId && s.segment_id !== secondId,
+    ),
     merged,
   ]);
 }
@@ -147,7 +153,7 @@ export function mergeSegments(
 export function resizeSegment(
   segments: readonly Segment[],
   segmentId: string,
-  edge: 'start' | 'end',
+  edge: "start" | "end",
   positionMs: number,
   durationMs: number,
 ): Segment[] {
@@ -160,7 +166,7 @@ export function resizeSegment(
   const previous = ordered[index - 1];
   const next = ordered[index + 1];
 
-  if (edge === 'start') {
+  if (edge === "start") {
     const lowerBound = previous?.end_ms ?? 0;
     const upperBound = target.end_ms - MIN_SEGMENT_MS;
     const clamped = Math.min(Math.max(positionMs, lowerBound), upperBound);
@@ -182,7 +188,10 @@ export function coverageMs(segments: readonly Segment[]): number {
 }
 
 /** 覆盖率（0~1）。 */
-export function coverageRatio(segments: readonly Segment[], durationMs: number): number {
+export function coverageRatio(
+  segments: readonly Segment[],
+  durationMs: number,
+): number {
   if (durationMs <= 0) return 0;
   return Math.min(coverageMs(segments) / durationMs, 1);
 }
