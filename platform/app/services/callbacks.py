@@ -9,10 +9,16 @@
   ``annotation_processing → annotation_pending / failed``
 """
 
-from rdh_contract.enums import AlgoOperator
+import uuid
+
+from rdh_contract.enums import AlgoOperator, JobStatus
 from rdh_contract.schemas import KeyFrame, QualityReport, Segment
 from rdh_contract.schemas.agent import UploadCallback
-from rdh_contract.schemas.scheduler import AlgoResultCallback, AnnotationProcessingCallback
+from rdh_contract.schemas.scheduler import (
+    AlgoJobResult,
+    AlgoResultCallback,
+    AnnotationProcessingCallback,
+)
 
 from app.repositories.algo_job_run import AlgoJobRunRepository
 from app.repositories.episode import EpisodeRepository
@@ -116,9 +122,22 @@ class CallbackService:
     ) -> TransitionOutcome:
         """送标处理结束：``annotation_processing → annotation_pending / failed``。
 
-        本阶段送标环节不跑算子（design.md 第 2 节），所以没有产物要落库 ——
-        只推进状态。将来接算子时在这里补落库逻辑，与 :meth:`handle_algo_result` 一致。
+        本阶段不跑算子，但落一条日志让界面看到「解析」和「送标」是分开的两步。
         """
+        status = JobStatus.SUCCEEDED if callback.succeeded else JobStatus.FAILED
+        await self._algo_job_runs.record(
+            callback.episode_id,
+            AlgoJobResult(
+                job_id=str(uuid.uuid4()),
+                episode_id=callback.episode_id,
+                operator=AlgoOperator.ANNOTATION_PROCESSING,
+                status=status,
+                model_version="v0.1.0",
+                error_message=callback.error_message if not callback.succeeded else None,
+                started_at=callback.reported_at,
+                finished_at=callback.reported_at,
+            ),
+        )
         return await self._lifecycle.finish_annotation_processing(
             callback.episode_id,
             succeeded=callback.succeeded,

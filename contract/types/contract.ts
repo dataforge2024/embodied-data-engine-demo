@@ -105,13 +105,15 @@ export type AlgoOperator =
   | "preannotate"
   | "quality"
   | "keyframe"
-  | "anomaly";
+  | "anomaly"
+  | "annotation_processing";
 
 export const AlgoOperatorValues: readonly AlgoOperator[] = [
   "preannotate",
   "quality",
   "keyframe",
   "anomaly",
+  "annotation_processing",
 ];
 
 export type UploadStatus =

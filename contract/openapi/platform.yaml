@@ -902,7 +902,7 @@ components:
 
     AlgoOperator:
       type: string
-      enum: [preannotate, quality, keyframe, anomaly]
+      enum: [preannotate, quality, keyframe, anomaly, annotation_processing]
 
     JobStatus:
       type: string

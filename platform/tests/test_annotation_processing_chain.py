@@ -15,7 +15,13 @@ from datetime import UTC, datetime
 
 import pytest
 from rdh_contract.enums import EpisodeStatus, ReviewDecision
-from rdh_contract.schemas import AnnotationSubmit, Segment, TransitionActor, VerifyResult
+from rdh_contract.schemas import (
+    AnnotationSubmit,
+    ReviewResult,
+    Segment,
+    TransitionActor,
+    VerifyResult,
+)
 from rdh_contract.schemas.scheduler import AnnotationProcessingCallback
 from rdh_contract.state_machine import INITIAL_STATE, InvalidTransitionError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -26,7 +32,7 @@ from app.repositories.annotation import AnnotationRepository
 from app.repositories.episode import EpisodeRepository
 from app.repositories.task import TaskRepository
 from app.services.callbacks import CallbackService
-from app.services.episode_lifecycle import EpisodeLifecycleService
+from app.services.episode_lifecycle import EpisodeLifecycleService, UnexpectedStatusError
 from app.services.review import ReviewService
 
 pytestmark = pytest.mark.integration
@@ -119,6 +125,15 @@ class _Harness:
             checked_topics=("/camera/front/image_raw",),
             verified_by=ANNOTATOR,
             verified_at=datetime.now(UTC),
+        )
+
+    def review_result(self, decision: ReviewDecision) -> ReviewResult:
+        return ReviewResult(
+            episode_id=self.episode_id,
+            decision=decision,
+            reason="分段边界不准" if decision is ReviewDecision.REJECT else None,
+            reviewed_by=ANNOTATOR,
+            reviewed_at=datetime.now(UTC),
         )
 
     def processing_done(self, *, succeeded: bool = True) -> AnnotationProcessingCallback:
@@ -226,14 +241,19 @@ class TestFullChain:
 
 
 class TestSkippingSteps:
-    """点错顺序要 409（守卫抛 InvalidTransitionError，上层转 409），不能静默改状态。"""
+    """点错顺序要 409，不能静默改状态。
+
+    人工操作的前置检查抛 :class:`UnexpectedStatusError`（「当前不是这一步」），
+    回调的源状态不符抛 :class:`InvalidTransitionError`（「这条边不存在」）—— 两者
+    都转 409，但语义不同，别混用。
+    """
 
     async def test_cannot_annotate_while_processing(self, session: AsyncSession) -> None:
         """送标还没完成就提交标注 —— 拦住。"""
         h = _Harness(session)
         await h.seed_to(EpisodeStatus.ANNOTATION_PROCESSING)
 
-        with pytest.raises(InvalidTransitionError):
+        with pytest.raises(UnexpectedStatusError):
             await h.review.submit_annotation(
                 AnnotationSubmit(
                     episode_id=h.episode_id,
@@ -251,8 +271,39 @@ class TestSkippingSteps:
         await h.seed_to(EpisodeStatus.VERIFICATION_PENDING)
         await h.review.submit_verification(h.verify(ReviewDecision.APPROVE))
 
-        with pytest.raises(InvalidTransitionError):
+        with pytest.raises(UnexpectedStatusError):
             await h.review.submit_verification(h.verify(ReviewDecision.APPROVE))
+
+    async def test_stale_review_message_is_not_self_contradictory(
+        self, session: AsyncSession
+    ) -> None:
+        """审核提交两次，第二次的报错不能自相矛盾。
+
+        曾经复用 ``InvalidTransitionError(当前, 期望)``，参数被读成 ``(源, 目标)``，
+        生成「不能从 annotation_review 迁移到 annotation_pending；允许的目标状态：
+        annotation_pending, ...」—— 说不允许，可允许列表里就有它。
+        """
+        h = _Harness(session)
+        # seed_to 的主链路止于 annotation_pending，最后一跳按真实路径走：提交标注
+        await h.seed_to(EpisodeStatus.ANNOTATION_PENDING)
+        await h.review.submit_annotation(
+            AnnotationSubmit(
+                episode_id=h.episode_id,
+                segments=(Segment(segment_id=str(uuid.uuid4()), start_ms=0, end_ms=900),),
+                notes=None,
+            ),
+            annotated_by=ANNOTATOR,
+        )
+        await h.review.submit_review(h.review_result(ReviewDecision.REJECT))
+
+        with pytest.raises(UnexpectedStatusError) as caught:
+            await h.review.submit_review(h.review_result(ReviewDecision.REJECT))
+
+        # 退回后已回到 annotation_pending，所以「期望 review、实际 pending」
+        assert caught.value.expected is EpisodeStatus.ANNOTATION_REVIEW
+        assert caught.value.actual is EpisodeStatus.ANNOTATION_PENDING
+        # 关键：不能再说「不允许迁到 X」却又把 X 列进允许清单
+        assert "允许的目标状态" not in str(caught.value)
 
     async def test_processing_callback_rejected_before_verification(
         self, session: AsyncSession
